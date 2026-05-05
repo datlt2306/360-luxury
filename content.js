@@ -324,51 +324,77 @@
             padding: "5px"
         });
 
+        // Lấy index các cột quan trọng
+        const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.innerText.trim());
+        const nameIdx = headers.findIndex(h => h.includes("Họ tên"));
+        const afccIdx = headers.findIndex(h => h.includes("AF/CC"));
+        const checkInIdx = headers.findIndex(h => h.includes("Điểm danh?"));
+        const scoreIdx = headers.findIndex(h => h.includes("Nộp bài?"));
+
         // Thêm từng sinh viên vào danh sách
         rows.forEach((row, index) => {
             const cells = row.cells;
-            if (!cells || cells.length < 4) return;
+            if (!cells || nameIdx === -1) return;
 
             const sttCell = cells[0];
-            const nameCell = cells[3];
-            const afccCell = cells[5]; // Cột "AF/CC"
-            const scoreCell = cells[9]; // Cột "Nộp bài?" chứa điểm ASM
+            const nameCell = cells[nameIdx];
+            const afccCell = afccIdx !== -1 ? cells[afccIdx] : null;
+            const scoreCell = scoreIdx !== -1 ? cells[scoreIdx] : null;
 
             const name = nameCell?.innerText?.trim() || `SV ${index + 1}`;
             const stt = sttCell?.innerText?.trim() || (index + 1);
 
-            // Kiểm tra cột AF/CC có dữ liệu không
-            const hasAfcc = afccCell && afccCell.innerText?.trim() !== "";
-
-            // Lấy điểm ASM từ cột Nộp bài
+            // Kiểm tra trạng thái
             let score = "";
             let hasSigned = false;
+            let isApproved = false;
+            let isScored = false;
+
             if (scoreCell) {
-                const scoreText = scoreCell.innerText || "";
-                const scoreMatch = scoreText.match(/ASM[:\s]*(\d+\.?\d*)/i);
-                if (scoreMatch) {
-                    score = scoreMatch[1];
+                const html = scoreCell.innerHTML;
+                const text = scoreCell.innerText;
+                
+                // Tìm điểm số từ scoreWrap_{id} hoặc tương tự
+                const scoreElem = scoreCell.querySelector('[id^="scoreWrap_"]');
+                if (scoreElem && scoreElem.innerText.trim()) {
+                    score = scoreElem.innerText.trim();
+                    isScored = true;
+                } else {
+                    const scoreMatch = text.match(/PRO[:\s]*(\d+\.?\d*)/i) || text.match(/ASM[:\s]*(\d+\.?\d*)/i);
+                    if (scoreMatch) {
+                        score = scoreMatch[1];
+                        isScored = true;
+                    }
                 }
-                // Kiểm tra xem SV đã ký chưa
-                if (scoreText.includes("Đã ký")) {
-                    hasSigned = true;
-                }
+
+                if (text.includes("Đã ký")) hasSigned = true;
+                if (html.includes("CTHĐ duyệt") || text.includes("CTHĐ duyệt")) isApproved = true;
             }
 
             const item = document.createElement("div");
             item.className = "quick-nav-item";
 
-            // Màu chữ: đỏ nếu có AF/CC, ngược lại mặc định
-            const nameColor = hasAfcc ? "#d32f2f" : "inherit";
+            // Logic màu sắc theo yêu cầu của USER:
+            // - Chưa nhập điểm -> Màu Đỏ
+            // - Đã nhập điểm + Chưa duyệt -> Màu Xanh Blue
+            // - Chủ nhiệm duyệt xong -> Màu Xanh Green
+            
+            let nameColor = "#d32f2f"; // Mặc định là Đỏ (Chưa nhập điểm)
+            
+            if (isApproved) {
+                nameColor = "#2e7d32"; // Xanh Green (Đã duyệt)
+            } else if ((isScored && score !== "" && score !== "0") || hasSigned) {
+                nameColor = "#1976d2"; // Xanh Blue (Đã nhập/đã ký nhưng chưa duyệt)
+            }
 
             // Hiển thị tên và điểm
-            if (score) {
-                item.innerHTML = `<span style="color:${nameColor}">${stt}. ${name}</span> <span style="color:#1565c0;font-weight:bold;margin-left:auto;">${score}</span>`;
-                item.style.display = "flex";
-                item.style.justifyContent = "space-between";
-            } else {
-                item.innerHTML = `<span style="color:${nameColor}">${stt}. ${name}</span>`;
-            }
+            const sttSpan = `<span style="color:${nameColor}; font-weight: 500;">${stt}. ${name}</span>`;
+            const scoreSpan = score ? `<span style="color:#1565c0;font-weight:bold;margin-left:auto; background: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${score}</span>` : "";
+            
+            item.innerHTML = sttSpan + scoreSpan;
+            item.style.display = "flex";
+            item.style.alignItems = "center";
+            item.style.justifyContent = "space-between";
             Object.assign(item.style, {
                 padding: "6px 8px",
                 cursor: "pointer",
@@ -521,10 +547,94 @@
         });
     }
 
+    // Xử lý màu sắc cho bảng lịch bảo vệ (#scheduleTable)
+    function processScheduleTable() {
+        const table = document.getElementById("scheduleTable");
+        if (!table) return;
+
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        const now = new Date();
+        const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const rows = tbody.querySelectorAll("tr");
+        rows.forEach(row => {
+            const cells = row.cells;
+            if (cells.length < 5) return;
+
+            let btn = row.querySelector("a.btn, button.btn");
+            if (!btn) return;
+
+            const btnText = btn.innerText.trim().toLowerCase();
+            const isClosed = cells[1].innerText.toLowerCase().includes("closed");
+
+            let bgColor = "";
+            let textColor = "white";
+
+            if (isClosed) {
+                bgColor = "#94a3b8"; // Xám (Đã đóng)
+            } else {
+                // Lấy thông tin thời gian từ cột "Ghi chú" (index 9)
+                const ghiChuCell = cells[9];
+                const timeRangeText = ghiChuCell ? ghiChuCell.innerText.trim() : "";
+                const timeMatch = timeRangeText.match(/(\d{1,2})[h:](\d{2})/);
+
+                if (timeMatch) {
+                    const startHour = parseInt(timeMatch[1], 10);
+                    const startMinute = parseInt(timeMatch[2], 10);
+                    const startTotalMinutes = startHour * 60 + startMinute;
+
+                    const isAccepted = btnText.includes("vào ca bảo vệ");
+
+                    if (currentTotalMinutes < startTotalMinutes) {
+                        // TƯƠNG LAI -> Luôn màu Da cam theo yêu cầu
+                        bgColor = "#f59e0b"; 
+                    } else {
+                        // HIỆN TẠI HOẶC QUÁ KHỨ
+                        if (isAccepted) {
+                            bgColor = "#10b981"; // Xanh Green (Đang diễn ra)
+                        } else {
+                            bgColor = "#ef4444"; // Đỏ (Trễ giờ chưa nhận)
+                        }
+                    }
+                } else {
+                    // Mặc định nếu không có giờ
+                    bgColor = btnText.includes("vào ca bảo vệ") ? "#10b981" : "#f59e0b";
+                }
+            }
+
+            if (bgColor) {
+                btn.style.setProperty("background-color", bgColor, "important");
+                btn.style.setProperty("border-color", bgColor, "important");
+                btn.style.setProperty("color", textColor, "important");
+                btn.style.setProperty("font-weight", "600", "important");
+                btn.style.setProperty("transition", "all 0.2s", "important");
+            }
+        });
+    }
+
     function init() {
         // Đợi 500ms để đảm bảo JS của website đã chạy xong
         setTimeout(() => {
             const table = document.getElementById(TABLE_ID);
+            const scheduleTable = document.getElementById("scheduleTable");
+
+            // Xử lý bảng lịch bảo vệ (độc lập với bảng điểm)
+            if (scheduleTable) {
+                processScheduleTable();
+                
+                // Theo dõi thay đổi trong scheduleTable
+                const scheduleTbody = scheduleTable.querySelector("tbody");
+                if (scheduleTbody) {
+                    const scheduleObserver = new MutationObserver(() => {
+                        processScheduleTable();
+                    });
+                    scheduleObserver.observe(scheduleTbody, { childList: true, subtree: true });
+                }
+            }
+
+            // Nếu không có bảng điểm thì dừng phần xử lý bảng điểm
             if (!table) return;
 
             const state = loadState();
@@ -557,6 +667,7 @@
                     debounceTimer = setTimeout(() => {
                         applyStateToAllRows(table, loadState());
                         createQuickNavPanel(table); // Refresh panel
+                        processScheduleTable(); // Refresh schedule colors
                     }, 300);
                 });
 
@@ -624,78 +735,66 @@
         // Tạo panel
         const panel = document.createElement("div");
         panel.id = "score-input-panel";
+        panel.className = "premium-panel";
         panel.innerHTML = `
-            <div id="score-panel-header">
+            <div id="score-panel-header" class="panel-header">
                 <span>🎯 Nhập điểm nâng cao</span>
                 <div id="score-panel-actions">
-                    <button id="score-panel-minimize" title="Thu nhỏ">_</button>
-                    <button id="score-panel-close">✕</button>
+                    <button id="score-panel-minimize" class="panel-btn" title="Thu nhỏ">_</button>
+                    <button id="score-panel-close" class="panel-btn">✕</button>
                 </div>
             </div>
-            <div id="score-panel-content">
+            <div id="score-panel-content" class="panel-content">
                 ${iapDiscrepancies.length > 0 ? `
-                    <div id="iap-quick-fixes" style="margin-bottom: 15px; padding: 10px; background: #e8f5e9; border: 1px solid #4CAF50; border-radius: 6px;">
-                        <div style="font-weight: bold; color: #2e7d32; margin-bottom: 5px;">🛠 Khớp điểm IAP:</div>
+                    <div id="iap-quick-fixes" class="iap-container">
+                        <div class="iap-title">🛠 Khớp điểm IAP (Tài liệu):</div>
                         ${iapDiscrepancies.map((fix, idx) => `
-                            <button class="iap-fix-btn" data-section="${fix.sectionName}" data-score="${fix.score}" 
-                                    style="width: 100%; margin-top: 5px; padding: 6px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: left; font-size: 11px;">
-                                ✅ Đặt <b>${fix.sectionName}</b> thành <b>${fix.score}</b>
-                            </button>
+                            <div class="iap-fix-row" style="display: flex; gap: 5px; margin-top: 5px;">
+                                <input type="number" class="iap-custom-score" value="${fix.score}" step="0.1" min="0" max="10" 
+                                       style="width: 50px; padding: 4px; border-radius: 4px; border: 1px solid #10b981; font-weight: bold;">
+                                <button class="iap-fix-btn" data-section="${fix.sectionName}" style="flex: 1; margin-top: 0; padding: 6px;">
+                                    ✅ Đặt <b>${fix.sectionName}</b>
+                                </button>
+                            </div>
                         `).join('')}
                     </div>
                 ` : ''}
+
+                <div class="section-fill-container" style="margin-bottom: 20px; padding: 12px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 12px;">
+                    <div class="iap-title" style="color: #1e40af;">🚀 Nhập nhanh các phần khác:</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                        <input type="number" id="section-fill-score" value="8" step="0.1" min="0" max="10" 
+                               style="width: 50px; padding: 6px; border-radius: 6px; border: 1px solid #3b82f6; font-weight: bold; text-align: center;">
+                        <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
+                            <button class="section-fill-btn" data-type="NHOM" style="padding: 6px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">👥 Nhập phần Nhóm</button>
+                            <button class="section-fill-btn" data-type="CANHAN" style="padding: 6px; background: #1e40af; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">👤 Nhập phần Cá nhân</button>
+                        </div>
+                    </div>
+                </div>
                 
-                <div id="score-total-row">
-                    <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
-                        <label style="flex: 1;">Bulk (tất cả):</label>
-                        <input type="number" id="score-total-input" min="0" max="10" step="0.1" placeholder="0-10" style="width: 60px;">
-                        <button id="score-distribute-btn">Fill</button>
+                <div id="score-total-row" class="total-row">
+                    <div class="bulk-fill-group">
+                        <label>Bulk (tất cả):</label>
+                        <input type="number" id="score-total-input" min="0" max="10" step="0.1" placeholder="0-10">
+                        <button id="score-distribute-btn" class="fill-btn">Fill</button>
                     </div>
                 </div>
 
-                <div id="bulk-paste-container" style="margin-bottom: 15px;">
-                    <button id="toggle-paste-btn" style="width: 100%; padding: 4px; font-size: 10px; background: #f0f0f0; border: 1px solid #ccc; cursor: pointer;">📋 Dán danh sách điểm</button>
-                    <div id="paste-area-wrapper" style="display: none; margin-top: 5px;">
-                        <textarea id="bulk-paste-area" placeholder="Dán dãy điểm (cách nhau bởi khoảng trắng hoặc xuống dòng)" style="width: 100%; height: 60px; font-size: 11px;"></textarea>
-                        <button id="apply-paste-btn" style="width: 100%; margin-top: 5px; background: #2196F3; color: white; border: none; padding: 5px; border-radius: 3px; cursor: pointer;">Áp dụng</button>
+                <div id="bulk-paste-container" class="paste-container">
+                    <button id="toggle-paste-btn" class="toggle-btn">📋 Dán danh sách điểm</button>
+                    <div id="paste-area-wrapper" class="paste-wrapper" style="display: none;">
+                        <textarea id="bulk-paste-area" placeholder="Dán dãy điểm (cách nhau bởi khoảng trắng hoặc xuống dòng)"></textarea>
+                        <button id="apply-paste-btn" class="apply-btn">Áp dụng</button>
                     </div>
                 </div>
 
-                <div id="score-sliders-container"></div>
+                <div id="score-sliders-container" class="sliders-container"></div>
             </div>
         `;
 
-        // Style cho panel
-        Object.assign(panel.style, {
-            position: "fixed",
-            left: "20px",
-            bottom: "20px",
-            width: "320px",
-            background: "white",
-            border: "2px solid #FF9800",
-            borderRadius: "8px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-            zIndex: "999999",
-            fontFamily: "Arial, sans-serif",
-            fontSize: "12px"
-        });
-
         document.body.appendChild(panel);
 
-        // Style header
         const header = panel.querySelector("#score-panel-header");
-        Object.assign(header.style, {
-            background: "linear-gradient(135deg, #FF9800 0%, #F57C00 100%)",
-            color: "white",
-            padding: "10px 12px",
-            cursor: "move",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontWeight: "bold",
-            fontSize: "14px",
-            borderRadius: "6px 6px 0 0"
-        });
 
         // Nút đóng và thu nhỏ
         const closeBtn = panel.querySelector("#score-panel-close");
@@ -797,11 +896,13 @@
         panel.querySelectorAll(".iap-fix-btn").forEach(btn => {
             btn.onclick = () => {
                 const section = btn.dataset.section;
-                const score = parseFloat(btn.dataset.score);
+                const scoreInput = btn.parentElement.querySelector(".iap-custom-score");
+                const score = parseFloat(scoreInput.value);
                 
-                // Chuẩn hóa tên section (bỏ dấu để khớp với criteriaType nếu cần)
-                // Tuy nhiên trong HTML user gửi, data-criteriatype là "TAILIEUDUAN", "NHOM", "CANHAN"
-                // Còn text trong alert là "TÀI LIỆU DỰ ÁN", "Nhóm", "Cá nhân"
+                if (isNaN(score) || score < 0 || score > 10) {
+                    alert("Vui lòng nhập điểm hợp lệ (0-10)");
+                    return;
+                }
                 
                 criteria.forEach((item, i) => {
                     let match = false;
@@ -810,8 +911,6 @@
                     if (section === "TÀI LIỆU DỰ ÁN" && cType === "TAILIEUDUAN") match = true;
                     if (section === "Nhóm" && cType === "NHOM") match = true;
                     if (section === "Cá nhân" && cType === "CANHAN") match = true;
-                    
-                    // Fallback: check if section name is contained in the criterion name
                     if (!match && item.name.includes(section)) match = true;
 
                     if (match) {
@@ -819,6 +918,28 @@
                     }
                 });
                 
+                updateTotalDisplay();
+            };
+        });
+
+        // Xử lý nhập nhanh các phần
+        panel.querySelectorAll(".section-fill-btn").forEach(btn => {
+            btn.onclick = () => {
+                const type = btn.dataset.type;
+                const scoreInput = panel.querySelector("#section-fill-score");
+                const score = parseFloat(scoreInput.value);
+
+                if (isNaN(score) || score < 0 || score > 10) {
+                    alert("Vui lòng nhập điểm hợp lệ (0-10)");
+                    return;
+                }
+
+                criteria.forEach((item, i) => {
+                    if (item.criteriaType === type) {
+                        updateSliderValue(i, score);
+                    }
+                });
+
                 updateTotalDisplay();
             };
         });
