@@ -1,0 +1,276 @@
+#column-toggle-container {
+    padding: 4px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    z-index: 99999;
+}
+
+.column-btn {
+    padding: 2px 6px;
+    border: 1px solid #777;
+    background: #eee;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    display: inline-block !important;
+    /* Đảm bảo luôn hiển thị */
+    visibility: visible !important;
+}
+
+.column-btn.hidden {
+    background: #e57373;
+    color: white;
+    text-decoration: line-through;
+    display: inline-block !important;
+    /* Vẫn hiển thị khi cột bị ẩn */
+    visibility: visible !important;
+}
+
+.column-btn.show-all-btn {
+    text-decoration: none !important;
+}
+
+/* ==================== TABLE STYLING ==================== */
+
+#checkInTable {
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: white;
+}
+
+#checkInTable thead {
+    background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+    color: white;
+}
+
+#checkInTable thead th {
+    padding: 10px 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid #1565c0;
+    white-space: nowrap;
+}
+
+#checkInTable tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+#checkInTable tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+#checkInTable tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+#checkInTable tbody tr:hover {
+    background-color: #e3f2fd !important;
+}
+
+#checkInTable tbody td {
+    padding: 8px 6px;
+    border: 1px solid #e0e0e0;
+    vertical-align: middle;
+}
+
+/* Avatar */
+#checkInTable .imgAvatar {
+    width: 50px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 2px solid #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Text styling */
+#checkInTable td {
+    font-size: 12px;
+    color: #333;
+}
+
+/* Radio buttons */
+#checkInTable input[type="radio"] {
+    width: 16px !important;
+    height: 16px !important;
+    margin-right: 4px;
+}
+
+/* Textarea */
+#checkInTable textarea {
+    font-size: 11px;
+    padding: 4px 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: none;
+    height: 24px;
+    line-height: 16px;
+    overflow-y: auto;
+    width: 100%;
+    max-width: 180px;
+    box-sizing: border-box;
+}
+
+/* Checkbox */
+#checkInTable input[type="checkbox"] {
+    width: 20px !important;
+    height: 20px !important;
+}
+
+/* STT column */
+#checkInTable tbody td:first-child {
+    text-align: center;
+    font-weight: bold;
+    color: #1565c0;
+}
+
+/* Họ tên column - make it stand out */
+#checkInTable tbody td:nth-child(4),
+#checkInTable thead th:nth-child(4) {
+    font-weight: 600;
+    color: #1a237e;
+    width: auto;
+    white-space: nowrap;
+}
+
+/* AF/CC column with status */
+#checkInTable td b[style*="color:#55b155"],
+#checkInTable td b[style*="color: #55b155"] {
+    background: #e8f5e9;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+#checkInTable td b[style*="color:#E60026"],
+#checkInTable td b[style*="color: #E60026"] {
+    background: #ffebee;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+/* Điểm danh labels */
+#checkInTable td.text-left {
+    font-size: 11px;
+    line-height: 1.8;
+}
+
+/* Signed status */
+#checkInTable td b[style*="color:#FF8700"] {
+    background: #fff3e0;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* Links */
+#checkInTable a {
+    color: #1976d2;
+    text-decoration: none;
+}
+
+#checkInTable a:hover {
+    text-decoration: underline;
+}
+
+/* Nhập điểm button */
+#checkInTable i[style*="color:#dd4b39"] {
+    background: #ffcdd2;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-style: normal;
+}
+
+/* Save icon - style thành nút bấm nhỏ */
+#checkInTable i.fa[style*="font-size:48px"] {
+    font-size: 14px !important;
+    background: #efe;
+    color: #333 !important;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-style: normal;
+    display: inline-block;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+#checkInTable i.fa[style*="font-size:48px"]:hover {
+    background: #eee;
+    transform: translateY(-1px);
+}
+
+#checkInTable i.fa[style*="font-size:48px"]::before {
+    content: " Save ";
+    font-family: inherit;
+}
+
+/* ==================== SCORE PANEL ENHANCEMENTS ==================== */
+
+#score-panel-header {
+    user-select: none;
+}
+
+#score-panel-actions {
+    display: flex;
+    gap: 5px;
+}
+
+#score-panel-minimize, #score-panel-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+#score-panel-minimize:hover, #score-panel-close:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.iap-fix-btn {
+    transition: transform 0.1s, background 0.2s;
+}
+
+.iap-fix-btn:hover {
+    background: #43A047 !important;
+    transform: translateX(2px);
+}
+
+.iap-fix-btn:active {
+    transform: scale(0.98);
+}
+
+#score-total-row input {
+    transition: border-color 0.2s;
+}
+
+#score-total-row input:focus {
+    border-color: #FF9800;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
+}
+
+#bulk-paste-area {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#bulk-paste-area:focus {
+    border-color: #2196F3;
+}

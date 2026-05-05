@@ -1,0 +1,5 @@
+Hướng dẫn:
+Bước 1: Mở trình duyệt chrome hoặc cococ
+Bước 2: paste địa chỉ sau: chrome://extensions/
+
+Bước 3: làm như trong ảnh
