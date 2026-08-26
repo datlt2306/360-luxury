@@ -357,8 +357,11 @@
                 // Tìm điểm số từ scoreWrap_{id} hoặc tương tự
                 const scoreElem = scoreCell.querySelector('[id^="scoreWrap_"]');
                 if (scoreElem && scoreElem.innerText.trim()) {
-                    score = scoreElem.innerText.trim();
-                    isScored = true;
+                    const tempScore = scoreElem.innerText.trim();
+                    score = tempScore;
+                    if (tempScore && tempScore.toUpperCase() !== "N/A") {
+                        isScored = true;
+                    }
                 } else {
                     const scoreMatch = text.match(/PRO[:\s]*(\d+\.?\d*)/i) || text.match(/ASM[:\s]*(\d+\.?\d*)/i);
                     if (scoreMatch) {
@@ -374,22 +377,36 @@
             const item = document.createElement("div");
             item.className = "quick-nav-item";
 
-            // Logic màu sắc theo yêu cầu của USER:
-            // - Chưa nhập điểm -> Màu Đỏ
-            // - Đã nhập điểm + Chưa duyệt -> Màu Xanh Blue
-            // - Chủ nhiệm duyệt xong -> Màu Xanh Green
-            
-            let nameColor = "#d32f2f"; // Mặc định là Đỏ (Chưa nhập điểm)
-            
-            if (isApproved) {
-                nameColor = "#2e7d32"; // Xanh Green (Đã duyệt)
-            } else if ((isScored && score !== "" && score !== "0") || hasSigned) {
-                nameColor = "#1976d2"; // Xanh Blue (Đã nhập/đã ký nhưng chưa duyệt)
+            const checkInCell = checkInIdx !== -1 ? cells[checkInIdx] : null;
+            let checkInStatus = "NONE";
+            if (checkInCell) {
+                const checkedRadio = checkInCell.querySelector('input[type="radio"]:checked');
+                if (checkedRadio) {
+                    const onclickAttr = checkedRadio.getAttribute('onclick') || '';
+                    if (onclickAttr.includes('PRESENT')) {
+                        checkInStatus = 'PRESENT';
+                    } else if (onclickAttr.includes('ABSENT')) {
+                        checkInStatus = 'ABSENT';
+                    } else if (onclickAttr.includes('LATE')) {
+                        checkInStatus = 'LATE';
+                    }
+                }
+            }
+
+            let nameColor = "#d32f2f"; // Mặc định màu đỏ cho chưa chọn hoặc vắng
+            let statusSuffix = "";
+
+            if (checkInStatus === "PRESENT" || checkInStatus === "LATE") {
+                nameColor = "#2e7d32"; // Màu xanh cho có mặt
+                statusSuffix = " (P)";
+            } else if (checkInStatus === "ABSENT") {
+                nameColor = "#d32f2f"; // Màu đỏ cho vắng mặt
+                statusSuffix = " (A)";
             }
 
             // Hiển thị tên và điểm
-            const sttSpan = `<span style="color:${nameColor}; font-weight: 500;">${stt}. ${name}</span>`;
-            const scoreSpan = score ? `<span style="color:#1565c0;font-weight:bold;margin-left:auto; background: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${score}</span>` : "";
+            const sttSpan = `<span style="color:${nameColor}; font-weight: 500;">${stt}. ${name}${statusSuffix}</span>`;
+            const scoreSpan = (score && score.toUpperCase() !== "N/A") ? `<span style="color:#1565c0;font-weight:bold;margin-left:auto; background: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${score}</span>` : "";
             
             item.innerHTML = sttSpan + scoreSpan;
             item.style.display = "flex";
@@ -673,7 +690,8 @@
 
                 observer.observe(tbody, {
                     childList: true,
-                    subtree: true
+                    subtree: true,
+                    characterData: true
                 });
             }
 
@@ -732,6 +750,8 @@
 
         if (criteria.length === 0) return;
 
+        const hasDATNSections = criteria.some(c => c.criteriaType === "NHOM" || c.criteriaType === "CANHAN" || c.criteriaType === "TAILIEUDUAN");
+
         // Tạo panel
         const panel = document.createElement("div");
         panel.id = "score-input-panel";
@@ -760,6 +780,7 @@
                     </div>
                 ` : ''}
 
+                ${hasDATNSections ? `
                 <div class="section-fill-container" style="margin-bottom: 20px; padding: 12px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 12px;">
                     <div class="iap-title" style="color: #1e40af;">🚀 Nhập nhanh các phần khác:</div>
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
@@ -771,6 +792,7 @@
                         </div>
                     </div>
                 </div>
+                ` : ''}
                 
                 <div id="score-total-row" class="total-row">
                     <div class="bulk-fill-group">

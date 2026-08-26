@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "E360 Auto Grader",
+  "version": "3.0",
+  "description": "Tự động nhập điểm trên E360",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.poly.edu.vn/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://e360.poly.edu.vn/Proctor/CheckIn*",
+        "http://e360.poly.edu.vn/Proctor/CheckIn*"
+      ],
+      "js": [
+        "content_list.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
