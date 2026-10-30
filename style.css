@@ -1657,3 +1657,31 @@ section.content-header-big .main-action input[type="search"] {
 .e360-btn-x2:active {
     transform: scale(0.97) !important;
 }
+
+/* Nút Ký tất cả trong header cột Chữ ký */
+.e360-bulk-sign-btn {
+    margin-top: 4px !important;
+    padding: 4px 10px !important;
+    background: #0071e3 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: var(--apple-radius-sm) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    box-shadow: var(--apple-shadow-sm) !important;
+}
+
+.e360-bulk-sign-btn:hover:not(:disabled) {
+    background: #0077ed !important;
+    transform: translateY(-0.5px) !important;
+}
+
+.e360-bulk-sign-btn:disabled {
+    background: #e5e5ea !important;
+    color: #8e8e93 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+    transform: none !important;
+}

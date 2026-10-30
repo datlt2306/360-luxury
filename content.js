@@ -976,6 +976,29 @@
             headerRow.appendChild(sigTh);
         }
 
+        // Nút "Ký tất cả" cạnh tiêu đề Chữ ký
+        let bulkSignBtn = sigTh.querySelector(".e360-bulk-sign-btn");
+        if (!bulkSignBtn) {
+            bulkSignBtn = document.createElement("button");
+            bulkSignBtn.type = "button";
+            bulkSignBtn.className = "e360-bulk-sign-btn";
+            bulkSignBtn.textContent = "Ký tất cả";
+            bulkSignBtn.title = "Ký hàng loạt (chỉ khi tất cả SV đã có điểm)";
+            bulkSignBtn.disabled = true;
+            sigTh.appendChild(document.createElement("br"));
+            sigTh.appendChild(bulkSignBtn);
+        }
+
+        // Gắn sự kiện click (tránh gắn trùng)
+        if (!bulkSignBtn.dataset.bound) {
+            bulkSignBtn.dataset.bound = "1";
+            bulkSignBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                bulkSignAll(table);
+            };
+        }
+
         let scoreTh = headerRow.querySelector(".e360-col-score-th");
         if (!scoreTh) {
             scoreTh = document.createElement("th");
@@ -1337,12 +1360,37 @@
             input.oninput = () => {
                 input.classList.remove("error-shake");
             };
+
+            // Guard cho auto-double: đánh dấu đang chỉnh sửa để không bị ghi đè khi reload
+            input.addEventListener("focus", () => {
+                try { window.__e360Editing = window.__e360Editing || {}; window.__e360Editing[studentId] = Infinity; } catch (e) { }
+            });
+            input.addEventListener("blur", () => {
+                try {
+                    window.__e360Editing = window.__e360Editing || {};
+                    window.__e360Editing[studentId] = Date.now() + 3000;
+                } catch (e) { }
+            });
         });
     }
 
+    // Phát hiện số giám thị hiện tại từ sidebar (GT:1 / GT:2)
+    function getCurrentGTNumber() {
+        try {
+            const sidebar = document.querySelector(".sidebar-menu, .main-sidebar, body");
+            const text = sidebar ? (sidebar.innerText || "") : (document.body.innerText || "");
+            const m = text.match(/GT[:\s]*(\d+)/i);
+            if (m) return parseInt(m[1], 10);
+        } catch (e) { }
+        return null;
+    }
+
     // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
+    // Chỉ GT2 tự động (GT1 nhập → GT2 auto lưu ×2)
     function autoDoubleScore(table) {
         if (!table) return;
+        const currentGT = getCurrentGTNumber();
+        if (currentGT !== 2) return;
         const tbody = table.querySelector("tbody");
         if (!tbody) return;
 
@@ -1382,6 +1430,12 @@
 
             // Nếu người dùng đang gõ thì không tự động
             if (document.activeElement === input) return;
+
+            // Guard: nếu vừa chỉnh sửa ô này trong 3s qua thì không tự động (tránh ghi đè khi reload)
+            try {
+                const editingUntil = (window.__e360Editing && window.__e360Editing[studentId]) || 0;
+                if (editingUntil > Date.now()) return;
+            } catch (e) { }
 
             // Chỉ tự động nếu ô input đang trống (chưa nhập)
             if (input.value.trim() !== "") return;
@@ -1423,6 +1477,102 @@
             // Đánh dấu đã xử lý base score này
             try { localStorage.setItem(guardKey, baseScoreText); } catch (e) { }
         });
+        updateBulkSignButtonState(table);
+    }
+
+    // Cập nhật trạng thái nút "Ký tất cả" (chỉ bật khi tất cả SV đã có điểm)
+    function updateBulkSignButtonState(table) {
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty"));
+        let allScored = true;
+        let hasUnsigned = false;
+        rows.forEach(row => {
+            if (isDATNRow(row, table)) return;
+            const tdScore = row.querySelector(".e360-col-score-td");
+            const input = tdScore ? tdScore.querySelector(".e360-score-input") : null;
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            let hasScore = false;
+            if (input && input.value.trim() !== "") hasScore = true;
+            else if (scoreElem) {
+                const s = (scoreElem.innerText || "").trim();
+                if (s && s.toUpperCase() !== "N/A" && s !== "..." && s !== "") hasScore = true;
+            }
+            if (!hasScore) allScored = false;
+            const text = (row.innerText || "").toLowerCase();
+            if (!text.includes("đã ký")) hasUnsigned = true;
+        });
+        const btns = table.querySelectorAll(".e360-bulk-sign-btn");
+        btns.forEach(btn => {
+            btn.disabled = !(allScored && hasUnsigned && rows.length > 0);
+        });
+    }
+
+    // Ký hàng loạt tất cả SV chưa ký (chỉ khi tất cả đã có điểm)
+    function bulkSignAll(table) {
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty"));
+
+        // Kiểm tra tất cả đã có điểm
+        let allScored = true;
+        rows.forEach(row => {
+            if (isDATNRow(row, table)) return;
+            const tdScore = row.querySelector(".e360-col-score-td");
+            const input = tdScore ? tdScore.querySelector(".e360-score-input") : null;
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            let hasScore = false;
+            if (input && input.value.trim() !== "") hasScore = true;
+            else if (scoreElem) {
+                const s = (scoreElem.innerText || "").trim();
+                if (s && s.toUpperCase() !== "N/A" && s !== "..." && s !== "") hasScore = true;
+            }
+            if (!hasScore) allScored = false;
+        });
+        if (!allScored) {
+            alert("⚠️ Chỉ được ký hàng loạt khi tất cả sinh viên đã có điểm!");
+            return;
+        }
+
+        const unsignedRows = rows.filter(row => {
+            const text = (row.innerText || "").toLowerCase();
+            return !text.includes("đã ký");
+        });
+        if (unsignedRows.length === 0) {
+            alert("✅ Tất cả sinh viên đã ký.");
+            return;
+        }
+
+        // Tạm override confirm để tự động đồng ý
+        const origConfirm = window.confirm;
+        window.confirm = () => true;
+        const origDialog = window.e360DialogConfirm;
+        if (window.e360DialogConfirm) window.e360DialogConfirm = () => Promise.resolve(true);
+
+        let idx = 0;
+        function signNext() {
+            if (idx >= unsignedRows.length) {
+                window.confirm = origConfirm;
+                if (origDialog) window.e360DialogConfirm = origDialog;
+                updateBulkSignButtonState(table);
+                return;
+            }
+            const row = unsignedRows[idx++];
+            const sigContainer = row.querySelector(".e360-signature-container");
+            const cb = sigContainer ? sigContainer.querySelector('input[type="checkbox"]') : row.querySelector('input[type="checkbox"]');
+            if (cb) {
+                if (!cb.checked) cb.checked = true;
+                cb.click();
+                cb.dispatchEvent(new Event("change", { bubbles: true }));
+            } else {
+                const btn = Array.from(row.querySelectorAll("a,button")).find(b => (b.innerText || "").includes("Ký"));
+                if (btn) btn.click();
+            }
+            setTimeout(signNext, 500);
+        }
+        signNext();
     }
 
     function forceLightChrome() {
@@ -1561,6 +1711,9 @@
             // Chèn UI nhập điểm inline cho các môn thường (không phải DATN)
             injectInlineScoreUI(table);
 
+            // Cập nhật trạng thái nút Ký tất cả
+            updateBulkSignButtonState(table);
+
             // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
             autoDoubleScore(table);
 
@@ -1578,6 +1731,7 @@
                         createQuickNavPanel(table); // Refresh panel
                         processScheduleTable(); // Refresh schedule colors
                         injectInlineScoreUI(table); // Refresh inline score UI
+                        updateBulkSignButtonState(table); // Cập nhật nút Ký tất cả
                         autoDoubleScore(table); // Tự động điền + lưu điểm x2
                     }, 300);
                 });
