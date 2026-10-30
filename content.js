@@ -1004,6 +1004,7 @@
     function autoDoubleScore(table) {
         if (!table) return;
         const currentGT = getCurrentGTNumber();
+        console.log("[E360-AutoDouble] currentGT =", currentGT);
         if (currentGT !== 2) return;
         const tbody = table.querySelector("tbody");
         if (!tbody) return;
@@ -1051,10 +1052,12 @@
                 if (editingUntil > Date.now()) return;
             } catch (e) { }
 
-            // Chỉ tự động nếu ô input đang trống (chưa nhập)
-            if (input.value.trim() !== "") return;
+            // Chỉ tự động nếu ô input đang trống hoặc đang chứa đúng điểm GT1 (chưa nhân đôi)
+            const curInputVal = input.value.trim();
+            if (curInputVal !== "" && curInputVal !== baseScoreText) return;
 
             const doubled = Math.min(10, baseNum * 2);
+            console.log("[E360-AutoDouble] filling student", studentId, baseNum, "->", doubled.toFixed(1));
             input.value = doubled.toFixed(1);
 
             // Lưu qua iframe
@@ -1459,9 +1462,18 @@
 
                 observer.observe(tbody, {
                     childList: true,
-                    subtree: true
+                    subtree: true,
+                    characterData: true
                 });
             }
+
+            // Fallback định kỳ cho GT2 auto-double (bắt các trường hợp observer bỏ lỡ)
+            try {
+                setInterval(function () {
+                    const t = document.getElementById(TABLE_ID);
+                    if (t) autoDoubleScore(t);
+                }, 4000);
+            } catch (e) { }
 
             console.log("[E360-VUI] Extension loaded. State:", state);
         }, 500);
