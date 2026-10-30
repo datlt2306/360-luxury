@@ -140,66 +140,6 @@
         table.parentNode.insertBefore(container, table);
     }
 
-    function injectHeaderToggle() {
-        const headerSection = document.querySelector("section.content-header-big");
-        if (!headerSection) return;
-
-        const boxBody = document.querySelector("div.box-body");
-        const contentWrapper = document.querySelector("div.content-wrapper");
-
-        // Xóa nút cũ nếu có
-        const oldBtn = document.getElementById("header-toggle-btn");
-        if (oldBtn) oldBtn.remove();
-
-        // Load trạng thái từ localStorage
-        const isVisible = localStorage.getItem(HEADER_STORAGE_KEY) !== "false";
-
-        // Áp dụng trạng thái
-        headerSection.style.display = isVisible ? "" : "none";
-        if (boxBody) {
-            boxBody.style.paddingTop = isVisible ? "90px" : "5px";
-        }
-        if (contentWrapper) {
-            contentWrapper.style.paddingTop = isVisible ? "90px" : "0px";
-        }
-
-        // Tạo nút toggle
-        const btn = document.createElement("button");
-        btn.id = "header-toggle-btn";
-        btn.textContent = isVisible ? "👁 Ẩn Header" : "👁 Hiện Header";
-        btn.className = "column-btn header-toggle-btn" + (isVisible ? "" : " hidden");
-
-        btn.onclick = () => {
-            const currentlyVisible = headerSection.style.display !== "none";
-            const newVisible = !currentlyVisible;
-
-            headerSection.style.display = newVisible ? "" : "none";
-            localStorage.setItem(HEADER_STORAGE_KEY, newVisible);
-
-            // Điều chỉnh padding-top của box-body
-            if (boxBody) {
-                boxBody.style.paddingTop = newVisible ? "90px" : "5px";
-            }
-
-            // Điều chỉnh padding-top của content-wrapper
-            if (contentWrapper) {
-                contentWrapper.style.paddingTop = newVisible ? "90px" : "0px";
-            }
-
-            btn.textContent = newVisible ? "👁 Ẩn Header" : "👁 Hiện Header";
-            if (newVisible) btn.classList.remove("hidden");
-            else btn.classList.add("hidden");
-        };
-
-        // Thêm vào container của column toggles
-        const container = document.getElementById("column-toggle-container");
-        if (container) {
-            container.appendChild(btn);
-        } else {
-            // Nếu chưa có container, thêm trước header section
-            headerSection.parentNode.insertBefore(btn, headerSection);
-        }
-    }
 
     function injectSidebarToggle() {
         const sidebar = document.querySelector("aside.main-sidebar");
@@ -1330,9 +1270,6 @@
 
             // Áp dụng trạng thái đã lưu cho tất cả rows hiện có
             applyStateToAllRows(table, state);
-
-            // Inject header toggle button
-            injectHeaderToggle();
 
             // Inject sidebar toggle button
             injectSidebarToggle();
