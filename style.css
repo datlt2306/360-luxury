@@ -1685,3 +1685,9 @@ section.content-header-big .main-action input[type="search"] {
     box-shadow: none !important;
     transform: none !important;
 }
+
+/* Fixed layout: content-wrapper / right-side padding-top */
+.fixed .content-wrapper,
+.fixed .right-side {
+    padding-top: 125px !important;
+}
