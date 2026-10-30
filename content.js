@@ -587,7 +587,11 @@
             bulkSignBtn.textContent = "Ký tất cả";
             bulkSignBtn.title = "Ký hàng loạt (chỉ khi tất cả SV đã có điểm)";
             bulkSignBtn.disabled = true;
-            sigTh.appendChild(document.createElement("br"));
+            // Chữ ký và nút Ký tất cả cùng 1 hàng
+            sigTh.style.display = "flex";
+            sigTh.style.alignItems = "center";
+            sigTh.style.gap = "6px";
+            sigTh.style.flexWrap = "wrap";
             sigTh.appendChild(bulkSignBtn);
         }
 
