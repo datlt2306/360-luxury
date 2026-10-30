@@ -1,9 +1,19 @@
 (function () {
+    // Áp dụng style sáng sớm nhất có thể
+    try {
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function () { if (typeof forceLightChrome === "function") forceLightChrome(); });
+        } else {
+            setTimeout(function () { if (typeof forceLightChrome === "function") forceLightChrome(); }, 0);
+        }
+    } catch (e) { }
+
     const TABLE_ID = "checkInTable";
-    const STORAGE_KEY = "columnToggleState_v1";
+    const STORAGE_KEY = "columnToggleState_v3";
     const HEADER_STORAGE_KEY = "headerSectionVisible_v1";
     const SIDEBAR_STORAGE_KEY = "sidebarVisible_v1";
     const SELECTED_SV_STORAGE_KEY = "selectedStudentIndex_v1";
+    const DEFAULT_HIDDEN_COLUMNS = ["Ghi chú điểm danh", "Nhận xét/ghi chú nộp bài", "AF/CC"];
 
     function loadState() {
         try {
@@ -76,20 +86,36 @@
         const showAllBtn = document.createElement("button");
         showAllBtn.textContent = "↻ Hiện tất cả";
         showAllBtn.className = "column-btn show-all-btn";
-        showAllBtn.style.background = "#4CAF50";
-        showAllBtn.style.color = "white";
-        showAllBtn.style.fontWeight = "bold";
         container.appendChild(showAllBtn);
 
         const columnButtons = [];
 
         headerCells.forEach((th, i) => {
+            const colName = (th.innerText || "").trim();
+            // Các cột Chữ ký & Nhập điểm (custom) luôn hiển thị, không cho toggle
+            if (th.classList.contains("e360-custom-col") || colName === "Chữ ký" || colName === "Nhập điểm") {
+                // Đảm bảo luôn hiện
+                state[i] = true;
+                const rows = table.rows;
+                for (let r = 0; r < rows.length; r++) {
+                    const cell = rows[r].cells[i];
+                    if (cell) cell.style.display = "";
+                }
+                return;
+            }
+
             const btn = document.createElement("button");
-            btn.textContent = th.innerText || `Cột ${i + 1}`;
+            btn.textContent = colName || `Cột ${i + 1}`;
             btn.className = "column-btn";
 
-            // Mặc định tất cả cột đều hiện (true)
-            if (state[i] === undefined) state[i] = true;
+            // Mặc định ẩn 3 cột: Ghi chú điểm danh, Nhận xét/ghi chú nộp bài, AF/CC
+            if (state[i] === undefined) {
+                const isDefaultHidden = DEFAULT_HIDDEN_COLUMNS.some(dh => 
+                    colName.toLowerCase().includes(dh.toLowerCase()) || 
+                    (dh === "AF/CC" && (colName.includes("AF") || colName.includes("CC")))
+                );
+                state[i] = !isDefaultHidden;
+            }
 
             if (state[i] === false) btn.classList.add("hidden");
 
@@ -131,21 +157,17 @@
         // Áp dụng trạng thái
         headerSection.style.display = isVisible ? "" : "none";
         if (boxBody) {
-            boxBody.style.paddingTop = isVisible ? "60px" : "5px";
+            boxBody.style.paddingTop = isVisible ? "90px" : "5px";
         }
         if (contentWrapper) {
-            contentWrapper.style.paddingTop = isVisible ? "50px" : "0px";
+            contentWrapper.style.paddingTop = isVisible ? "90px" : "0px";
         }
 
         // Tạo nút toggle
         const btn = document.createElement("button");
         btn.id = "header-toggle-btn";
         btn.textContent = isVisible ? "👁 Ẩn Header" : "👁 Hiện Header";
-        btn.className = "column-btn header-toggle-btn";
-        btn.style.background = isVisible ? "#2196F3" : "#e57373";
-        btn.style.color = "white";
-        btn.style.fontWeight = "bold";
-        btn.style.marginLeft = "10px";
+        btn.className = "column-btn header-toggle-btn" + (isVisible ? "" : " hidden");
 
         btn.onclick = () => {
             const currentlyVisible = headerSection.style.display !== "none";
@@ -156,16 +178,17 @@
 
             // Điều chỉnh padding-top của box-body
             if (boxBody) {
-                boxBody.style.paddingTop = newVisible ? "60px" : "5px";
+                boxBody.style.paddingTop = newVisible ? "90px" : "5px";
             }
 
             // Điều chỉnh padding-top của content-wrapper
             if (contentWrapper) {
-                contentWrapper.style.paddingTop = newVisible ? "50px" : "0px";
+                contentWrapper.style.paddingTop = newVisible ? "90px" : "0px";
             }
 
             btn.textContent = newVisible ? "👁 Ẩn Header" : "👁 Hiện Header";
-            btn.style.background = newVisible ? "#2196F3" : "#e57373";
+            if (newVisible) btn.classList.remove("hidden");
+            else btn.classList.add("hidden");
         };
 
         // Thêm vào container của column toggles
@@ -195,33 +218,24 @@
 
         // Áp dụng trạng thái
         sidebar.style.display = isVisible ? "" : "none";
-        sidebar.style.background = isVisible ? "#222d32" : "white";
         if (contentWrapper) {
             contentWrapper.style.marginLeft = isVisible ? "" : "5px";
         }
         if (mainHeader) {
             mainHeader.style.display = isVisible ? "" : "none";
         }
-        if (wrapper) {
-            wrapper.style.background = isVisible ? "#222d32" : "white";
-        }
 
         // Tạo nút toggle
         const btn = document.createElement("button");
         btn.id = "sidebar-toggle-btn";
         btn.textContent = isVisible ? "◀ Ẩn Sidebar" : "▶ Hiện Sidebar";
-        btn.className = "column-btn sidebar-toggle-btn";
-        btn.style.background = isVisible ? "#9C27B0" : "#e57373";
-        btn.style.color = "white";
-        btn.style.fontWeight = "bold";
-        btn.style.marginLeft = "10px";
+        btn.className = "column-btn sidebar-toggle-btn" + (isVisible ? "" : " hidden");
 
         btn.onclick = () => {
             const currentlyVisible = sidebar.style.display !== "none";
             const newVisible = !currentlyVisible;
 
             sidebar.style.display = newVisible ? "" : "none";
-            sidebar.style.background = newVisible ? "#222d32" : "white";
             localStorage.setItem(SIDEBAR_STORAGE_KEY, newVisible);
 
             // Điều chỉnh margin-left của content-wrapper
@@ -234,13 +248,9 @@
                 mainHeader.style.display = newVisible ? "" : "none";
             }
 
-            // Đổi màu nền wrapper
-            if (wrapper) {
-                wrapper.style.background = newVisible ? "#222d32" : "white";
-            }
-
             btn.textContent = newVisible ? "◀ Ẩn Sidebar" : "▶ Hiện Sidebar";
-            btn.style.background = newVisible ? "#9C27B0" : "#e57373";
+            if (newVisible) btn.classList.remove("hidden");
+            else btn.classList.add("hidden");
         };
 
         // Thêm vào container của column toggles
@@ -251,42 +261,51 @@
     }
 
     function createQuickNavPanel(table) {
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        // Chỉ lấy các dòng sinh viên thực sự, bỏ qua dòng thông báo loading hoặc dataTables_empty
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty"));
+        if (rows.length === 0) return;
+
         // Xóa panel cũ nếu có
         const oldPanel = document.getElementById("quick-nav-panel");
         if (oldPanel) oldPanel.remove();
 
-        // Lấy danh sách họ tên từ bảng (cột thứ 4 - index 3)
-        const tbody = table.querySelector("tbody");
-        if (!tbody) return;
-
-        const rows = tbody.querySelectorAll("tr");
-        if (rows.length === 0) return;
+        const COLLAPSED_STORAGE_KEY = "quickNavPanelCollapsed_v1";
+        const isCollapsed = localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
 
         // Tạo panel
         const panel = document.createElement("div");
         panel.id = "quick-nav-panel";
         panel.innerHTML = `
             <div id="quick-nav-header">
-                <span>📋 Danh sách SV</span>
-                <button id="quick-nav-close">✕</button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button id="quick-nav-toggle-btn" class="quick-nav-icon-btn" title="Thu nhỏ / Mở rộng">${isCollapsed ? "▸" : "▾"}</button>
+                    <span>📋 Danh sách SV</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <button id="quick-nav-close">✕</button>
+                </div>
             </div>
-            <div id="quick-nav-list"></div>
+            <div id="quick-nav-list" style="${isCollapsed ? "display: none;" : ""}"></div>
         `;
 
-        // Style cho panel
+        // Style cho panel (Apple Cupertino Floating HUD)
         Object.assign(panel.style, {
             position: "fixed",
-            top: "100px",
+            top: "90px",
             right: "20px",
-            width: "200px",
-            maxHeight: "550px",
-            background: "white",
-            border: "2px solid #2196F3",
-            borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            width: "260px",
+            maxHeight: "600px",
+            background: "rgba(255, 255, 255, 0.94)",
+            backdropFilter: "blur(20px) saturate(180%)",
+            border: "1px solid rgba(0, 0, 0, 0.1)",
+            borderRadius: "16px",
+            boxShadow: "0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04)",
             zIndex: "999999",
             overflow: "hidden",
-            fontFamily: "Arial, sans-serif"
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
         });
 
         document.body.appendChild(panel);
@@ -294,83 +313,144 @@
         // Style cho header (draggable)
         const header = panel.querySelector("#quick-nav-header");
         Object.assign(header.style, {
-            background: "#2196F3",
-            color: "white",
-            padding: "8px 10px",
+            background: "rgba(245, 245, 247, 0.95)",
+            color: "#1d1d1f",
+            padding: "10px 14px",
             cursor: "move",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            fontWeight: "bold",
-            fontSize: "13px"
+            fontWeight: "600",
+            fontSize: "16px",
+            borderBottom: isCollapsed ? "none" : "1px solid rgba(0, 0, 0, 0.08)",
+            userSelect: "none"
         });
+
+        // Nút toggle thu gọn / mở rộng ở đầu header
+        const toggleBtn = panel.querySelector("#quick-nav-toggle-btn");
+        const listContainer = panel.querySelector("#quick-nav-list");
+
+        const toggleCollapse = () => {
+            const currentlyHidden = listContainer.style.display === "none";
+            if (currentlyHidden) {
+                listContainer.style.display = "block";
+                toggleBtn.textContent = "▾";
+                header.style.borderBottom = "1px solid rgba(0, 0, 0, 0.08)";
+                localStorage.setItem(COLLAPSED_STORAGE_KEY, "false");
+            } else {
+                listContainer.style.display = "none";
+                toggleBtn.textContent = "▸";
+                header.style.borderBottom = "none";
+                localStorage.setItem(COLLAPSED_STORAGE_KEY, "true");
+            }
+        };
+
+        toggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleCollapse();
+        };
+
+        header.ondblclick = (e) => {
+            if (e.target !== closeBtn) {
+                toggleCollapse();
+            }
+        };
 
         // Nút đóng
         const closeBtn = panel.querySelector("#quick-nav-close");
         Object.assign(closeBtn.style, {
             background: "transparent",
             border: "none",
-            color: "white",
-            fontSize: "16px",
-            cursor: "pointer"
+            color: "#86868b",
+            fontSize: "15px",
+            cursor: "pointer",
+            padding: "0 4px",
+            lineHeight: "1"
         });
         closeBtn.onclick = () => panel.style.display = "none";
 
         // Danh sách
-        const listContainer = panel.querySelector("#quick-nav-list");
         Object.assign(listContainer.style, {
             maxHeight: "500px",
             overflowY: "auto",
-            padding: "5px"
+            padding: "6px"
         });
 
-        // Lấy index các cột quan trọng
-        const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.innerText.trim());
-        const nameIdx = headers.findIndex(h => h.includes("Họ tên"));
-        const afccIdx = headers.findIndex(h => h.includes("AF/CC"));
-        const checkInIdx = headers.findIndex(h => h.includes("Điểm danh?"));
-        const scoreIdx = headers.findIndex(h => h.includes("Nộp bài?"));
+        // Lấy index các cột quan trọng (dùng textContent để không bị ảnh hưởng bởi CSS text-transform)
+        const headers = Array.from(table.querySelectorAll("thead th")).map(th => (th.textContent || th.innerText || "").trim().toLowerCase());
+        const rawNameIdx = headers.findIndex(h => h.includes("họ tên") || h.includes("ho ten") || h.includes("họ và tên"));
+        const rawAfccIdx = headers.findIndex(h => h.includes("af/cc") || h.includes("af") || h.includes("cc"));
+        const rawCheckInIdx = headers.findIndex(h => h.includes("điểm danh") || h.includes("diem danh"));
+        const rawScoreIdx = headers.findIndex(h => (h.includes("nộp bài") || h.includes("nop bai") || h.includes("điểm") || h.includes("diem")) && !h.includes("điểm danh") && !h.includes("nhập điểm"));
+
+        // Fallback sang index mặc định của bảng nếu không tìm thấy header
+        const nameIdx = rawNameIdx !== -1 ? rawNameIdx : 3;
+        const afccIdx = rawAfccIdx !== -1 ? rawAfccIdx : 5;
+        const checkInIdx = rawCheckInIdx !== -1 ? rawCheckInIdx : 7;
+        const scoreIdx = rawScoreIdx !== -1 ? rawScoreIdx : 9;
 
         // Thêm từng sinh viên vào danh sách
         rows.forEach((row, index) => {
             const cells = row.cells;
-            if (!cells || nameIdx === -1) return;
+            if (!cells || cells.length <= 1 || row.querySelector(".dataTables_empty")) return;
 
             const sttCell = cells[0];
             const nameCell = cells[nameIdx];
             const afccCell = afccIdx !== -1 ? cells[afccIdx] : null;
-            const scoreCell = scoreIdx !== -1 ? cells[scoreIdx] : null;
+
+            // Tìm cell chứa điểm: ưu tiên scoreIdx (cột Nộp bài), nếu không có thì quét tìm cell có scoreWrap hoặc input
+            let targetScoreCell = cells[scoreIdx];
+            if (!targetScoreCell || (!targetScoreCell.querySelector('[id^="scoreWrap_"]') && !targetScoreCell.querySelector('.e360-score-input'))) {
+                for (let c of cells) {
+                    if (c.querySelector('[id^="scoreWrap_"]') || c.querySelector('.e360-score-input') || (c.innerHTML && c.innerHTML.includes('InputScore('))) {
+                        targetScoreCell = c;
+                        break;
+                    }
+                }
+            }
 
             const name = nameCell?.innerText?.trim() || `SV ${index + 1}`;
             const stt = sttCell?.innerText?.trim() || (index + 1);
 
-            // Kiểm tra trạng thái
+            // Kiểm tra trạng thái điểm
             let score = "";
             let hasSigned = false;
             let isApproved = false;
             let isScored = false;
 
-            if (scoreCell) {
-                const html = scoreCell.innerHTML;
-                const text = scoreCell.innerText;
+            if (targetScoreCell) {
+                const html = targetScoreCell.innerHTML;
+                const text = targetScoreCell.innerText;
                 
-                // Tìm điểm số từ scoreWrap_{id} hoặc tương tự
-                const scoreElem = scoreCell.querySelector('[id^="scoreWrap_"]');
+                // 1. Tìm điểm số từ scoreWrap_{id}
+                const scoreElem = targetScoreCell.querySelector('[id^="scoreWrap_"]');
                 if (scoreElem && scoreElem.innerText.trim()) {
                     const tempScore = scoreElem.innerText.trim();
-                    score = tempScore;
-                    if (tempScore && tempScore.toUpperCase() !== "N/A") {
+                    if (tempScore && tempScore.toUpperCase() !== "N/A" && tempScore !== "...") {
+                        score = tempScore;
                         isScored = true;
                     }
-                } else {
-                    const scoreMatch = text.match(/PRO[:\s]*(\d+\.?\d*)/i) || text.match(/ASM[:\s]*(\d+\.?\d*)/i);
+                }
+
+                // 2. Nếu chưa có, tìm từ ô input inline .e360-score-input
+                if (!score) {
+                    const inlineInput = targetScoreCell.querySelector('.e360-score-input');
+                    if (inlineInput && inlineInput.value.trim()) {
+                        score = inlineInput.value.trim();
+                        isScored = true;
+                    }
+                }
+
+                // 3. Nếu chưa có, tìm từ regex
+                if (!score) {
+                    const scoreMatch = text.match(/(?:PRO|ASM|SPEAKING|EOS)[:\s]*([\d\.]+)/i) || text.match(/[:\s]+([\d\.]+)/);
                     if (scoreMatch) {
                         score = scoreMatch[1];
                         isScored = true;
                     }
                 }
 
-                if (text.includes("Đã ký")) hasSigned = true;
+                if (text.includes("Đã ký") || html.includes("Đã ký")) hasSigned = true;
                 if (html.includes("CTHĐ duyệt") || text.includes("CTHĐ duyệt")) isApproved = true;
             }
 
@@ -406,17 +486,17 @@
 
             // Hiển thị tên và điểm
             const sttSpan = `<span style="color:${nameColor}; font-weight: 500;">${stt}. ${name}${statusSuffix}</span>`;
-            const scoreSpan = (score && score.toUpperCase() !== "N/A") ? `<span style="color:#1565c0;font-weight:bold;margin-left:auto; background: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${score}</span>` : "";
+            const scoreSpan = (score && score.toUpperCase() !== "N/A") ? `<span style="color:#0071e3; font-weight: 700; margin-left: auto; background: rgba(0, 113, 227, 0.1); padding: 2px 8px; border-radius: 6px; font-size: 14px;">${score}</span>` : "";
             
             item.innerHTML = sttSpan + scoreSpan;
             item.style.display = "flex";
             item.style.alignItems = "center";
             item.style.justifyContent = "space-between";
             Object.assign(item.style, {
-                padding: "6px 8px",
+                padding: "8px 10px",
                 cursor: "pointer",
                 borderBottom: "1px solid #eee",
-                fontSize: "12px",
+                fontSize: "15px",
                 transition: "background 0.2s",
                 background: hasSigned ? "#e0e0e0" : ""
             });
@@ -445,7 +525,7 @@
                     });
                     document.body.appendChild(toast);
                     setTimeout(() => toast.remove(), 1500);
-                }).catch(err => console.error("Copy failed:", err));
+                }).catch(() => {});
 
                 // Xóa highlight cũ (chỉ khi chọn người khác)
                 document.querySelectorAll(".highlight-row").forEach(el => {
@@ -506,11 +586,7 @@
             const showPanelBtn = document.createElement("button");
             showPanelBtn.id = "show-nav-panel-btn";
             showPanelBtn.textContent = "📋 DS Sinh viên";
-            showPanelBtn.className = "column-btn";
-            showPanelBtn.style.background = "#2196F3";
-            showPanelBtn.style.color = "white";
-            showPanelBtn.style.fontWeight = "bold";
-            showPanelBtn.style.marginLeft = "10px";
+            showPanelBtn.className = "column-btn show-nav-panel-btn";
 
             showPanelBtn.onclick = () => {
                 panel.style.display = panel.style.display === "none" ? "" : "none";
@@ -531,36 +607,110 @@
             if (items[idx]) {
                 items[idx].classList.add("selected-sv");
                 items[idx].style.fontWeight = "bold";
-                // Cuộn panel đến item đã chọn
+                // Cuộn panel con đến item đã chọn
                 items[idx].scrollIntoView({ behavior: "auto", block: "center" });
-                // Cuộn bảng đến dòng đã chọn
+                // Đánh dấu highlight dòng trên bảng (KHÔNG tự cuộn màn hình để tránh giật lag khi bảng refresh)
                 const tableRows = tbody.querySelectorAll("tr");
                 if (tableRows[idx]) {
-                    setTimeout(() => {
-                        tableRows[idx].scrollIntoView({ behavior: "smooth", block: "center" });
-                        tableRows[idx].classList.add("highlight-row");
-                        tableRows[idx].style.backgroundColor = "#c8e6c9";
-                        tableRows[idx].style.border = "3px solid #d32f2f";
-                    }, 600);
+                    tableRows[idx].classList.add("highlight-row");
+                    tableRows[idx].style.backgroundColor = "#c8e6c9";
+                    tableRows[idx].style.border = "3px solid #d32f2f";
                 }
             }
         }
     }
 
-    // Xóa <br> thừa ở đầu cột Điểm danh (cột index 7)
-    function removeLeadingBrFromCheckInColumn(table) {
+    // Chuyển đổi radio điểm danh thành công tắc gạt Apple Cupertino Segmented Switch
+    function transformCheckInToSegmentedSwitch(table) {
+        if (!table) return;
         const tbody = table.querySelector("tbody");
         if (!tbody) return;
 
+        // Tìm index của cột "Điểm danh?"
+        let checkInIdx = -1;
+        const ths = table.querySelectorAll("thead th");
+        ths.forEach((th, idx) => {
+            const text = (th.textContent || th.innerText).trim().toLowerCase();
+            if (text.includes("điểm danh") && !text.includes("ghi chú")) {
+                checkInIdx = idx;
+            }
+        });
+        if (checkInIdx === -1) checkInIdx = 7;
+
         const rows = tbody.querySelectorAll("tr");
         rows.forEach(row => {
-            const checkInCell = row.cells[7]; // Cột "Điểm danh?"
-            if (checkInCell) {
-                // Xóa các <br> ở đầu cell
-                while (checkInCell.firstChild && checkInCell.firstChild.nodeName === "BR") {
-                    checkInCell.removeChild(checkInCell.firstChild);
+            const checkInCell = row.cells[checkInIdx];
+            if (!checkInCell) return;
+
+            // Đã chuyển đổi rồi thì không làm lại
+            if (checkInCell.querySelector(".e360-checkin-switch")) return;
+
+            // Tìm tất cả radio inputs trong cell
+            const radios = Array.from(checkInCell.querySelectorAll('input[type="radio"]'));
+            if (radios.length === 0) return;
+
+            const switchContainer = document.createElement("div");
+            switchContainer.className = "e360-checkin-switch";
+            switchContainer.setAttribute("role", "radiogroup");
+
+            radios.forEach(radio => {
+                // Xác định nhãn text
+                let labelText = "";
+                let nextNode = radio.nextSibling;
+                while (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
+                    labelText += nextNode.textContent;
+                    nextNode = nextNode.nextSibling;
                 }
+                labelText = labelText.trim();
+                if (!labelText) {
+                    labelText = radio.getAttribute("title") || "Option";
+                }
+
+                // Xác định trạng thái
+                const lowerText = labelText.toLowerCase();
+                const titleText = (radio.getAttribute("title") || "").toLowerCase();
+                const onClickText = radio.getAttribute("onclick") || "";
+
+                let statusType = "present";
+                if (lowerText.includes("vắng") || lowerText.includes("absent") || titleText.includes("absent") || onClickText.includes("ABSENT")) {
+                    statusType = "absent";
+                } else if (lowerText.includes("muộn") || lowerText.includes("late") || titleText.includes("late") || onClickText.includes("LATE")) {
+                    statusType = "late";
+                } else if (lowerText.includes("có") || lowerText.includes("present") || titleText.includes("present") || onClickText.includes("PRESENT")) {
+                    statusType = "present";
+                }
+
+                // Tạo segment item (label bọc input)
+                const itemLabel = document.createElement("label");
+                itemLabel.className = `e360-switch-item e360-switch-${statusType}`;
+                itemLabel.title = labelText;
+
+                // Tinh chỉnh input radio
+                radio.classList.add("e360-switch-radio");
+                radio.removeAttribute("style");
+
+                // Dot chỉ thị trạng thái
+                const indicator = document.createElement("span");
+                indicator.className = "e360-switch-indicator";
+
+                // Text nhãn
+                const textSpan = document.createElement("span");
+                textSpan.className = "e360-switch-text";
+                textSpan.textContent = labelText;
+
+                // Ráp vào label
+                itemLabel.appendChild(radio);
+                itemLabel.appendChild(indicator);
+                itemLabel.appendChild(textSpan);
+
+                switchContainer.appendChild(itemLabel);
+            });
+
+            // Xóa sạch nội dung cũ trong cell và gắn switchContainer vào
+            while (checkInCell.firstChild) {
+                checkInCell.removeChild(checkInCell.firstChild);
             }
+            checkInCell.appendChild(switchContainer);
         });
     }
 
@@ -592,9 +742,9 @@
             if (isClosed) {
                 bgColor = "#94a3b8"; // Xám (Đã đóng)
             } else {
-                // Lấy thông tin thời gian từ cột "Ghi chú" (index 9)
-                const ghiChuCell = cells[9];
-                const timeRangeText = ghiChuCell ? ghiChuCell.innerText.trim() : "";
+                // Lấy thông tin thời gian bắt đầu từ cột "T/g bđ" (index 6)
+                const startTimeCell = cells[6];
+                const timeRangeText = startTimeCell ? startTimeCell.innerText.trim() : "";
                 const timeMatch = timeRangeText.match(/(\d{1,2})[h:](\d{2})/);
 
                 if (timeMatch) {
@@ -602,7 +752,7 @@
                     const startMinute = parseInt(timeMatch[2], 10);
                     const startTotalMinutes = startHour * 60 + startMinute;
 
-                    const isAccepted = btnText.includes("vào ca bảo vệ");
+                    const isAccepted = btnText.includes("vào ca thi") || btnText.includes("vào phòng");
 
                     if (currentTotalMinutes < startTotalMinutes) {
                         // TƯƠNG LAI -> Luôn màu Da cam theo yêu cầu
@@ -631,9 +781,714 @@
         });
     }
 
+    // ==================== INLINE SCORE INPUT (NON-DATN) ====================
+
+    // Kiểm tra xem dòng sinh viên có thuộc Dự án tốt nghiệp (DATN) hay không
+    function isDATNRow(row, table) {
+        if (!row || !row.cells) return false;
+
+        // Lấy danh sách tiêu đề cột (dùng textContent tránh ảnh hưởng bởi text-transform)
+        const headers = Array.from(table.querySelectorAll("thead th")).map(th => (th.textContent || th.innerText || "").trim().toLowerCase());
+        const rawSubjectIdx = headers.findIndex(h => h.includes("môn thi") || h.includes("mon thi"));
+        const rawScoreIdx = headers.findIndex(h => (h.includes("nộp bài") || h.includes("nop bai") || h.includes("điểm") || h.includes("diem")) && !h.includes("điểm danh") && !h.includes("nhập điểm"));
+
+        const subjectIdx = rawSubjectIdx !== -1 ? rawSubjectIdx : 4;
+        const scoreIdx = rawScoreIdx !== -1 ? rawScoreIdx : 9;
+
+        // 1. Kiểm tra mã môn thi (thường ở cột index 4)
+        if (subjectIdx !== -1 && row.cells[subjectIdx]) {
+            const subjectText = row.cells[subjectIdx].innerText.trim().toUpperCase();
+            if (/^PRO\d+/i.test(subjectText) || 
+                subjectText.includes("DATN") || 
+                subjectText.includes("DỰ ÁN TỐT NGHIỆP") || 
+                subjectText.includes("DO AN TOT NGHIEP") ||
+                subjectText.includes("CAPSTONE")) {
+                return true;
+            }
+        }
+
+        // 2. Kiểm tra cột Nộp bài (thường ở cột index 9)
+        const checkCell = scoreIdx !== -1 && row.cells[scoreIdx] ? row.cells[scoreIdx] : null;
+        if (checkCell) {
+            const html = checkCell.innerHTML.toUpperCase();
+            const text = checkCell.innerText.toUpperCase();
+            if (text.includes("PRO:") || html.includes("PRO:") || text.includes("CTHĐ") || text.includes("HỘI ĐỒNG")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Lưu điểm qua iframe ngầm
+    function saveScoreViaIframe(studentId, score, callback) {
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.top = "-9999px";
+        iframe.style.left = "-9999px";
+        iframe.style.width = "1px";
+        iframe.style.height = "1px";
+        iframe.style.opacity = "0";
+        iframe.style.pointerEvents = "none";
+        iframe.src = "/Proctor/InputScore?sssID=" + studentId;
+
+        document.body.appendChild(iframe);
+
+        let isDone = false;
+        let loadCount = 0;
+
+        const timeout = setTimeout(() => {
+            if (!isDone) {
+                isDone = true;
+                if (iframe.parentNode) iframe.remove();
+                callback(false, "Timeout khi kết nối server");
+            }
+        }, 15000);
+
+        iframe.onload = () => {
+            if (isDone) return;
+            loadCount++;
+            if (loadCount > 1) return;
+
+            try {
+                // Tự động đồng ý các popup confirm nếu có
+                if (iframe.contentWindow) {
+                    try {
+                        iframe.contentWindow.confirm = () => true;
+                        if (iframe.contentWindow.e360DialogConfirm) {
+                            iframe.contentWindow.e360DialogConfirm = () => Promise.resolve(true);
+                        }
+                    } catch (e) {}
+                }
+
+                const idoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (!idoc) return;
+
+                setTimeout(() => {
+                    if (isDone) return;
+                    try {
+                        let inputs = idoc.querySelectorAll('input.score-input, input[id^="txtScore_"]');
+                        if (inputs.length === 0) {
+                            inputs = idoc.querySelectorAll('#tblScore input[type="text"], #tblScore input[type="number"]');
+                        }
+
+                        if (inputs.length === 0) {
+                            isDone = true;
+                            clearTimeout(timeout);
+                            if (iframe.parentNode) iframe.remove();
+                            callback(false, "Không tìm thấy form nhập điểm");
+                            return;
+                        }
+
+                        // Điền điểm vào các ô tiêu chí
+                        inputs.forEach(input => {
+                            input.value = score;
+                            input.dispatchEvent(new Event("input", { bubbles: true }));
+                            input.dispatchEvent(new Event("change", { bubbles: true }));
+                            input.dispatchEvent(new Event("blur", { bubbles: true }));
+                        });
+
+                        // Tìm nút Lưu điểm
+                        const saveBtn = idoc.querySelector('button[onclick*="SaveAllScore"]') || 
+                                        idoc.querySelector('#btnSaveAll') ||
+                                        idoc.querySelector('button.btn-success') || 
+                                        idoc.querySelector('button.btn-primary') || 
+                                        idoc.querySelector('button[type="submit"]');
+
+                        if (saveBtn) {
+                            saveBtn.click();
+
+                            // Xử lý popup xác nhận nếu có
+                            setTimeout(() => {
+                                try {
+                                    const buttons = Array.from(idoc.querySelectorAll("button, .btn, .ui-button"));
+                                    const confirmBtn = buttons.find(b => {
+                                        const t = (b.innerText || "").trim().toLowerCase();
+                                        return t === "xác nhận" || t === "đồng ý" || t === "ok" || t === "yes";
+                                    });
+                                    if (confirmBtn) {
+                                        confirmBtn.click();
+                                    }
+                                } catch (e) {}
+
+                                // Chờ server xử lý lưu điểm rồi đóng iframe
+                                setTimeout(() => {
+                                    if (!isDone) {
+                                        isDone = true;
+                                        clearTimeout(timeout);
+                                        if (iframe.parentNode) iframe.remove();
+                                        callback(true);
+                                    }
+                                }, 1500);
+                            }, 500);
+                        } else {
+                            const form = idoc.querySelector("form");
+                            if (form) {
+                                form.submit();
+                                setTimeout(() => {
+                                    if (!isDone) {
+                                        isDone = true;
+                                        clearTimeout(timeout);
+                                        if (iframe.parentNode) iframe.remove();
+                                        callback(true);
+                                    }
+                                }, 1500);
+                            } else {
+                                isDone = true;
+                                clearTimeout(timeout);
+                                if (iframe.parentNode) iframe.remove();
+                                callback(false, "Không thấy nút lưu");
+                            }
+                        }
+                    } catch (err) {
+                        isDone = true;
+                        clearTimeout(timeout);
+                        if (iframe.parentNode) iframe.remove();
+                        callback(false, "Lỗi xử lý: " + err.message);
+                    }
+                }, 400);
+            } catch (err) {
+                isDone = true;
+                clearTimeout(timeout);
+                if (iframe.parentNode) iframe.remove();
+                callback(false, "Lỗi iframe: " + err.message);
+            }
+        };
+    }
+
+    // Tái cấu trúc các cột bảng: tách Chữ ký và Nhập điểm ra 2 cột riêng ở cuối
+    function reorganizeTableColumns(table) {
+        if (!table) return;
+
+        const thead = table.querySelector("thead");
+        const tbody = table.querySelector("tbody");
+        if (!thead || !tbody) return;
+
+        const headerRow = thead.querySelector("tr");
+        if (!headerRow) return;
+
+        // 1. Đảm bảo 2 header Chữ ký và Nhập điểm có mặt ở thead
+        let sigTh = headerRow.querySelector(".e360-col-signature-th");
+        if (!sigTh) {
+            sigTh = document.createElement("th");
+            sigTh.className = "no-sort e360-custom-col e360-col-signature-th";
+            sigTh.textContent = "Chữ ký";
+            headerRow.appendChild(sigTh);
+        }
+
+        let scoreTh = headerRow.querySelector(".e360-col-score-th");
+        if (!scoreTh) {
+            scoreTh = document.createElement("th");
+            scoreTh.className = "no-sort e360-custom-col e360-col-score-th";
+            scoreTh.textContent = "Nhập điểm";
+            headerRow.appendChild(scoreTh);
+        }
+
+        // 2. Tìm index của cột "Nộp bài?" và đổi tên thành "Điểm"
+        let submitColIdx = -1;
+        const ths = headerRow.querySelectorAll("th");
+        ths.forEach((th, idx) => {
+            const text = (th.textContent || th.innerText).trim().toLowerCase();
+            if ((text.includes("nộp bài") || text === "điểm" || th.classList.contains("e360-col-diem-th")) && !text.includes("ghi chú") && !text.includes("nhận xét") && !th.classList.contains("e360-col-score-th")) {
+                submitColIdx = idx;
+                th.textContent = "Điểm";
+                th.classList.add("e360-col-diem-th");
+            }
+        });
+        if (submitColIdx === -1) submitColIdx = 9;
+
+        // 3. Xử lý từng dòng trong tbody
+        const rows = tbody.querySelectorAll("tr");
+        rows.forEach(row => {
+            if (row.querySelector(".dataTables_empty")) return;
+
+            // Đảm bảo 2 cell Chữ ký và Nhập điểm luôn có mặt ở cuối row
+            let tdSig = row.querySelector(".e360-col-signature-td");
+            if (!tdSig) {
+                tdSig = document.createElement("td");
+                tdSig.className = "text-center e360-custom-col e360-col-signature-td";
+                row.appendChild(tdSig);
+            }
+
+            let tdScore = row.querySelector(".e360-col-score-td");
+            if (!tdScore) {
+                tdScore = document.createElement("td");
+                tdScore.className = "text-center e360-custom-col e360-col-score-td";
+                row.appendChild(tdScore);
+            }
+
+            // Với dòng DATN: giữ nguyên cấu trúc cũ, chỉ để trống 2 ô mới
+            if (isDATNRow(row, table)) return;
+
+            const submitCell = row.cells[submitColIdx];
+            if (!submitCell) return;
+
+            // Ẩn nút "Nhập điểm" cũ
+            const oldInputBtns = submitCell.querySelectorAll('i, a, span');
+            oldInputBtns.forEach(el => {
+                const title = el.getAttribute("title") || "";
+                const alt = el.getAttribute("alt") || "";
+                const text = el.textContent || "";
+                if (title === "Nhập điểm" || alt === "Nhập điểm" || text.includes("Nhập điểm")) {
+                    el.style.display = "none";
+                }
+            });
+
+            // Ẩn hoàn toàn biểu tượng reload 🔄 cạnh điểm (RefreshScore)
+            const reloadScoreBtns = submitCell.querySelectorAll('[onclick*="RefreshScore"], [title*="Tải lại điểm"]');
+            reloadScoreBtns.forEach(btn => {
+                btn.style.display = "none";
+            });
+
+            // Container cho cột Chữ ký
+            let sigContainer = tdSig.querySelector(".e360-signature-container");
+            if (!sigContainer) {
+                sigContainer = document.createElement("div");
+                sigContainer.className = "e360-signature-container";
+                tdSig.appendChild(sigContainer);
+            }
+
+            // Ô tick (checkbox) thuộc cột chữ ký -> chuyển từ submitCell sang tdSig
+            const checkoutCheckbox = submitCell.querySelector('input[type="checkbox"]');
+            if (checkoutCheckbox && checkoutCheckbox.parentNode !== sigContainer) {
+                checkoutCheckbox.classList.add("e360-sig-checkbox");
+                sigContainer.prepend(checkoutCheckbox);
+            }
+
+            // Xóa bỏ hoàn toàn biểu tượng reload 🔄 ở cột chữ ký theo yêu cầu
+            const refreshSignBtn = submitCell.querySelector('[onclick*="RefreshSign"]') || sigContainer.querySelector('[onclick*="RefreshSign"], .e360-refresh-icon');
+            if (refreshSignBtn) {
+                refreshSignBtn.remove();
+            }
+
+            // Di chuyển chữ ký từ submitCell sang tdSig (dạng text thuần, không bo viền nút)
+            const signWrap = submitCell.querySelector('[id^="signWrap_"]');
+
+            if (signWrap && signWrap.parentNode !== sigContainer && !sigContainer.contains(signWrap)) {
+                const textElem = document.createElement("span");
+                textElem.className = "e360-sig-badge";
+                textElem.appendChild(signWrap);
+
+                const signText = textElem.innerText || "";
+                if (signText.includes("Đã ký")) {
+                    textElem.classList.add("sig-signed");
+                } else if (signText.includes("Không ký")) {
+                    textElem.classList.add("sig-refused");
+                } else {
+                    textElem.classList.add("sig-unsigned");
+                }
+
+                sigContainer.appendChild(textElem);
+            } else if (sigContainer.querySelector(".e360-sig-badge")) {
+                const textElem = sigContainer.querySelector(".e360-sig-badge");
+                const signText = textElem.innerText || "";
+                textElem.classList.remove("sig-signed", "sig-unsigned", "sig-refused");
+                if (signText.includes("Đã ký")) {
+                    textElem.classList.add("sig-signed");
+                } else if (signText.includes("Không ký")) {
+                    textElem.classList.add("sig-refused");
+                } else {
+                    textElem.classList.add("sig-unsigned");
+                }
+            }
+
+            // Xóa chữ "ASM:", "SPEAKING:", "EOS:" và các thẻ thừa trong cột Điểm
+            Array.from(submitCell.childNodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    node.textContent = node.textContent.replace(/(?:ASM|SPEAKING|EOS|PRO)\s*:\s*/gi, "").trim();
+                }
+            });
+            submitCell.querySelectorAll("br").forEach(br => br.remove());
+
+            // Nếu ô Điểm còn dính inline-score-wrap thì chuyển sang tdScore
+            const orphanWrap = submitCell.querySelector(".e360-inline-score-wrap");
+            if (orphanWrap && orphanWrap.parentNode !== tdScore) {
+                tdScore.appendChild(orphanWrap);
+            }
+        });
+    }
+
+    // Lấy ID sinh viên chuẩn xác từ row
+    function getStudentIdFromRow(row) {
+        if (!row) return null;
+        // 1. Radio data-checkin-item-id
+        const itemRadio = row.querySelector('[data-checkin-item-id]');
+        if (itemRadio) {
+            const id = itemRadio.getAttribute('data-checkin-item-id');
+            if (id) return id;
+        }
+        // 2. Radio name="answer_..."
+        const radioName = row.querySelector('input[name^="answer_"]');
+        if (radioName) {
+            const m = radioName.name.match(/answer_(\d+)/);
+            if (m) return m[1];
+        }
+        // 3. Quét toàn bộ HTML của row
+        const rowHtml = row.innerHTML;
+        const match = rowHtml.match(/InputScore\((\d+)\)/) || 
+                      rowHtml.match(/ChooseAnswerCheckIn\((\d+)/) ||
+                      rowHtml.match(/RefreshScore\((\d+)\)/) || 
+                      rowHtml.match(/RefreshSign\((\d+)\)/) ||
+                      rowHtml.match(/MoveToOldRoom\((\d+)\)/) ||
+                      rowHtml.match(/RequestCheckIn\((\d+)\)/) ||
+                      rowHtml.match(/CheckOutSectionNoScore\((\d+)/) ||
+                      rowHtml.match(/scoreWrap_(\d+)/);
+        if (match && match[1]) return match[1];
+        return null;
+    }
+
+    // Chèn giao diện nhập điểm inline cho từng dòng môn thường
+    function injectInlineScoreUI(table) {
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll("tr");
+        if (rows.length === 0) return;
+
+        rows.forEach(row => {
+            // Nếu là dòng của Dự án tốt nghiệp -> giữ nguyên cấu trúc cũ
+            if (isDATNRow(row, table)) return;
+
+            // Nếu sinh viên đã ký -> ẩn ô nhập điểm & nút Lưu
+            const rowText = (row.innerText || "").toLowerCase();
+            const signWrap = row.querySelector('[id^="signWrap_"]');
+            const signText = signWrap ? (signWrap.innerText || "").toLowerCase() : "";
+            const isSigned = rowText.includes("đã ký") || signText.includes("đã ký");
+
+            let tdScore = row.querySelector(".e360-col-score-td");
+            if (isSigned) {
+                if (tdScore) {
+                    const existingWrap = tdScore.querySelector(".e360-inline-score-wrap");
+                    if (existingWrap) existingWrap.remove();
+                }
+                return;
+            }
+
+            const studentId = getStudentIdFromRow(row);
+            if (!studentId) return;
+
+            // Đảm bảo tdScore tồn tại ở cuối row
+            if (!tdScore) {
+                tdScore = row.querySelector(".e360-col-score-td");
+            }
+            if (!tdScore) {
+                tdScore = document.createElement("td");
+                tdScore.className = "text-center e360-custom-col e360-col-score-td";
+                row.appendChild(tdScore);
+            }
+
+            // Lấy điểm hiện tại nếu có
+            let currentScore = "";
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            if (scoreElem) {
+                const s = scoreElem.innerText.trim();
+                if (s && s.toUpperCase() !== "N/A" && s !== "...") {
+                    currentScore = s;
+                }
+            } else {
+                const textMatch = row.innerText.match(/(?:ASM|SPEAKING|EOS)[:\s]*([\d\.]+)/i);
+                if (textMatch && textMatch[1]) {
+                    currentScore = textMatch[1];
+                }
+            }
+
+            // Nếu đã chèn rồi trong tdScore, kiểm tra xem có cần đồng bộ giá trị không
+            const existingWrap = tdScore.querySelector(".e360-inline-score-wrap");
+            if (existingWrap) {
+                // Không tự động fill lại giá trị vào input khi điểm thay đổi
+                // (ví dụ giám thị 2 nhập điểm) — giữ nguyên giá trị người dùng đang nhập.
+                return;
+            }
+
+            // Tạo container nhập điểm inline
+            const wrap = document.createElement("div");
+            wrap.className = "e360-inline-score-wrap";
+            wrap.innerHTML = `
+                <div class="e360-inline-score-row">
+                    <input type="text" class="e360-score-input" data-id="${studentId}" value="${currentScore}" placeholder="Điểm" title="Nhập điểm (0 - 10) rồi bấm Lưu hoặc Enter" maxlength="4">
+                    <button type="button" class="e360-btn-x2" data-id="${studentId}" title="Nhân đôi điểm (x2)">×2</button>
+                    <button type="button" class="e360-btn-save" data-id="${studentId}" title="Lưu điểm (hoặc nhấn Enter)">Lưu</button>
+                </div>
+                <div class="e360-score-status" data-id="${studentId}"></div>
+            `;
+
+            tdScore.appendChild(wrap);
+
+            const input = wrap.querySelector(".e360-score-input");
+            const btnSave = wrap.querySelector(".e360-btn-save");
+            const btnX2 = wrap.querySelector(".e360-btn-x2");
+            const statusDiv = wrap.querySelector(".e360-score-status");
+
+            // Nút x2 điểm: nhân đôi giá trị trong ô input
+            if (btnX2) {
+                btnX2.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Lấy điểm từ cột "Điểm" (scoreElem) để nhân đôi
+                    let baseScore = "";
+                    if (scoreElem) {
+                        const s = (scoreElem.innerText || "").trim();
+                        if (s && s.toUpperCase() !== "N/A" && s !== "..." && s !== "") {
+                            baseScore = s;
+                        }
+                    }
+                    if (!baseScore) {
+                        baseScore = input.value.trim();
+                    }
+                    const num = parseFloat(String(baseScore).replace(",", "."));
+                    if (isNaN(num)) {
+                        input.value = "";
+                        input.focus();
+                        return;
+                    }
+                    let doubled = num * 2;
+                    if (doubled > 10) doubled = 10;
+                    input.value = doubled.toFixed(1);
+                    input.classList.remove("error-shake");
+                    input.focus();
+                };
+            }
+
+            // Hàm thực hiện lưu điểm
+            const doSave = () => {
+                const rawVal = input.value.trim().replace(",", ".");
+                if (rawVal === "") {
+                    alert("⚠️ Vui lòng nhập điểm!");
+                    input.focus();
+                    return;
+                }
+
+                const scoreNum = parseFloat(rawVal);
+                if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 10) {
+                    alert("⚠️ Điểm không hợp lệ! Vui lòng nhập từ 0 đến 10.");
+                    input.classList.add("error-shake");
+                    input.focus();
+                    return;
+                }
+
+                input.classList.remove("error-shake");
+                btnSave.disabled = true;
+                input.disabled = true;
+                const origBtnText = btnSave.innerText;
+                btnSave.innerText = "...";
+
+                statusDiv.className = "e360-score-status loading";
+                statusDiv.innerText = "⏳ Đang lưu...";
+
+                saveScoreViaIframe(studentId, rawVal, (success, msg) => {
+                    btnSave.disabled = false;
+                    input.disabled = false;
+                    btnSave.innerText = origBtnText;
+
+                    if (success) {
+                        statusDiv.className = "e360-score-status success";
+                        statusDiv.innerText = "✅ Đã lưu";
+                        // Giữ điểm trong ô input sau khi lưu
+                        input.value = rawVal;
+                        input.classList.add("saved-flash");
+                        setTimeout(() => input.classList.remove("saved-flash"), 2000);
+
+                        // Cập nhật thẻ hiển thị điểm trong cell nếu có
+                        if (scoreElem) {
+                            scoreElem.innerText = rawVal;
+                        }
+
+                        // Đồng bộ lưu vết storage để các panel / tab khác nhận biết
+                        try {
+                            localStorage.setItem("e360_score_updated", JSON.stringify({
+                                itemId: parseInt(studentId, 10),
+                                score: rawVal,
+                                ts: Date.now()
+                            }));
+                        } catch (err) {}
+
+                        // Tự ẩn thông báo trạng thái sau 3s
+                        setTimeout(() => {
+                            if (statusDiv.innerText === "✅ Đã lưu") {
+                                statusDiv.className = "e360-score-status";
+                                statusDiv.innerText = "";
+                            }
+                        }, 3000);
+                    } else {
+                        statusDiv.className = "e360-score-status error";
+                        statusDiv.innerText = "❌ " + (msg || "Lỗi lưu");
+                        input.classList.add("error-shake");
+                    }
+                });
+            };
+
+            // Sự kiện click nút Lưu
+            btnSave.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                doSave();
+            };
+
+            // Sự kiện gõ phím Enter trên ô input
+            input.onkeydown = (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    doSave();
+                }
+            };
+
+            input.oninput = () => {
+                input.classList.remove("error-shake");
+            };
+        });
+    }
+
+    // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
+    function autoDoubleScore(table) {
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll("tr");
+        rows.forEach(row => {
+            if (row.querySelector(".dataTables_empty")) return;
+            if (isDATNRow(row, table)) return;
+
+            const studentId = getStudentIdFromRow(row);
+            if (!studentId) return;
+
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            if (!scoreElem) return;
+
+            const baseScoreText = (scoreElem.innerText || "").trim();
+            if (!baseScoreText || baseScoreText.toUpperCase() === "N/A" || baseScoreText === "...") return;
+
+            const baseNum = parseFloat(baseScoreText.replace(",", "."));
+            if (isNaN(baseNum) || baseNum < 0 || baseNum > 5) return;
+
+            // Guard 1: đã xử lý base score này rồi thì bỏ qua (tránh lặp)
+            const guardKey = "e360_autodouble_last_" + studentId;
+            const lastBase = localStorage.getItem(guardKey);
+            if (lastBase === baseScoreText) return;
+
+            // Guard 2: nếu scoreElem đang là giá trị chúng ta đã tự lưu (×2) thì bỏ qua
+            const savedKey = "e360_autodouble_saved_" + studentId;
+            const lastSaved = localStorage.getItem(savedKey);
+            if (lastSaved === baseScoreText) return;
+
+            // Tìm tdScore & input
+            let tdScore = row.querySelector(".e360-col-score-td");
+            if (!tdScore) return;
+            const input = tdScore.querySelector(".e360-score-input");
+            const statusDiv = tdScore.querySelector(".e360-score-status");
+            if (!input) return;
+
+            // Nếu người dùng đang gõ thì không tự động
+            if (document.activeElement === input) return;
+
+            // Chỉ tự động nếu ô input đang trống (chưa nhập)
+            if (input.value.trim() !== "") return;
+
+            const doubled = Math.min(10, baseNum * 2);
+            input.value = doubled.toFixed(1);
+
+            // Lưu qua iframe
+            saveScoreViaIframe(studentId, doubled.toFixed(1), (success, msg) => {
+                if (success) {
+                    if (statusDiv) {
+                        statusDiv.className = "e360-score-status success";
+                        statusDiv.innerText = "✅ Tự động lưu x2";
+                    }
+                    input.classList.add("saved-flash");
+                    setTimeout(() => input.classList.remove("saved-flash"), 2000);
+                    try {
+                        localStorage.setItem("e360_score_updated", JSON.stringify({
+                            itemId: parseInt(studentId, 10),
+                            score: doubled.toFixed(1),
+                            ts: Date.now()
+                        }));
+                        localStorage.setItem(savedKey, doubled.toFixed(1));
+                    } catch (e) { }
+                    setTimeout(() => {
+                        if (statusDiv && statusDiv.innerText === "✅ Tự động lưu x2") {
+                            statusDiv.className = "e360-score-status";
+                            statusDiv.innerText = "";
+                        }
+                    }, 3000);
+                } else {
+                    if (statusDiv) {
+                        statusDiv.className = "e360-score-status error";
+                        statusDiv.innerText = "❌ " + (msg || "Lỗi lưu");
+                    }
+                }
+            });
+
+            // Đánh dấu đã xử lý base score này
+            try { localStorage.setItem(guardKey, baseScoreText); } catch (e) { }
+        });
+    }
+
+    function forceLightChrome() {
+        try {
+            var targets = [
+                '.main-header',
+                '.main-header .navbar',
+                '.main-header .logo',
+                '.main-sidebar',
+                '.main-sidebar .sidebar',
+                '.left-side',
+                'aside.main-sidebar',
+                'section.sidebar'
+            ];
+            targets.forEach(function (sel) {
+                document.querySelectorAll(sel).forEach(function (el) {
+                    var bg = (sel.indexOf('logo') !== -1) ? '#f9fafb' : '#ffffff';
+                    el.style.setProperty('background', bg, 'important');
+                    el.style.setProperty('background-color', bg, 'important');
+                    if (sel === '.main-header' || sel === '.main-header .navbar' || sel === '.main-header .logo') {
+                        el.style.setProperty('height', '40px', 'important');
+                        el.style.setProperty('min-height', '40px', 'important');
+                        el.style.setProperty('line-height', '40px', 'important');
+                    }
+                });
+            });
+
+            // Padding top cho sidebar
+            document.querySelectorAll('.main-sidebar, .left-side, aside.main-sidebar').forEach(function (el) {
+                el.style.setProperty('padding-top', '60px', 'important');
+            });
+
+            // Header text/icon màu tối trên nền trắng
+            document.querySelectorAll('.main-header, .main-header a, .main-header .fa, .main-header i').forEach(function (el) {
+                if (!el.classList.contains('btn') || el.classList.contains('e360-theme-toggle')) {
+                    el.style.setProperty('color', '#1d1d1f', 'important');
+                }
+            });
+
+            // Ép màu chữ sidebar tối để nhìn thấy trên nền trắng
+            document.querySelectorAll('.sidebar-menu li, .sidebar-menu li a, .sidebar-menu li.header').forEach(function (el) {
+                el.style.setProperty('color', '#1d1d1f', 'important');
+            });
+            document.querySelectorAll('.sidebar-menu li a i, .sidebar-menu li a i.fa').forEach(function (el) {
+                el.style.setProperty('color', '#86868b', 'important');
+            });
+            document.querySelectorAll('.sidebar-menu li.active a, .sidebar-menu li.active a i').forEach(function (el) {
+                el.style.setProperty('color', '#ffffff', 'important');
+                el.style.setProperty('background', '#0071e3', 'important');
+                el.style.setProperty('background-color', '#0071e3', 'important');
+            });
+            // Xóa inline background xanh đậm nếu adminlte set
+            document.querySelectorAll('.main-sidebar, .left-side, .main-header, .main-header .navbar, .main-header .logo').forEach(function (el) {
+                if (el.style.backgroundColor && el.style.backgroundColor.indexOf('36,') !== -1) {
+                    el.style.removeProperty('background-color');
+                }
+            });
+        } catch (e) { }
+    }
+
     function init() {
+        // Ép tone sáng cho header/sidebar ngay lập tức
+        forceLightChrome();
         // Đợi 500ms để đảm bảo JS của website đã chạy xong
         setTimeout(() => {
+            forceLightChrome();
             const table = document.getElementById(TABLE_ID);
             const scheduleTable = document.getElementById("scheduleTable");
 
@@ -651,8 +1506,37 @@
                 }
             }
 
+            // Theo dõi thay đổi class trên body (theme panel) để giữ tone sáng
+            try {
+                var bodyObserver = new MutationObserver(function () { forceLightChrome(); });
+                bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+            } catch (e) { }
+
+            // Theo dõi liên tục để AdminLTE/theme không ghi đè lại màu
+            try {
+                var persistDebounce = null;
+                var persistObserver = new MutationObserver(function () {
+                    clearTimeout(persistDebounce);
+                    persistDebounce = setTimeout(function () { forceLightChrome(); }, 120);
+                });
+                persistObserver.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+            } catch (e) { }
+
+            // Giữ style liên tục (AdminLTE có thể set inline sau load)
+            setInterval(function () { forceLightChrome(); }, 800);
+
             // Nếu không có bảng điểm thì dừng phần xử lý bảng điểm
             if (!table) return;
+
+            // Tái cấu trúc các cột (tách Chữ ký & Nhập điểm ra 2 cột riêng ở cuối)
+            reorganizeTableColumns(table);
+
+            // Đảm bảo cột Chữ ký & Nhập điểm luôn hiển thị (không bị ẩn do state cũ)
+            try {
+                table.querySelectorAll('.e360-col-signature-th, .e360-col-signature-td, .e360-col-score-th, .e360-col-score-td').forEach(function (el) {
+                    el.style.display = '';
+                });
+            } catch (e) { }
 
             const state = loadState();
 
@@ -671,8 +1555,14 @@
             // Tạo panel điều hướng nhanh
             createQuickNavPanel(table);
 
-            // Xóa <br> thừa ở đầu cột Điểm danh (cột index 7)
-            removeLeadingBrFromCheckInColumn(table);
+            // Chuyển đổi radio điểm danh thành Apple Cupertino Segmented Switch
+            transformCheckInToSegmentedSwitch(table);
+
+            // Chèn UI nhập điểm inline cho các môn thường (không phải DATN)
+            injectInlineScoreUI(table);
+
+            // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
+            autoDoubleScore(table);
 
             // Theo dõi thay đổi trong tbody để áp dụng lại state và refresh panel khi có rows mới
             const tbody = table.querySelector("tbody");
@@ -682,16 +1572,19 @@
                     // Debounce để tránh gọi quá nhiều lần
                     clearTimeout(debounceTimer);
                     debounceTimer = setTimeout(() => {
+                        reorganizeTableColumns(table); // Cập nhật cột Chữ ký & Nhập điểm
                         applyStateToAllRows(table, loadState());
+                        transformCheckInToSegmentedSwitch(table); // Cập nhật switch điểm danh
                         createQuickNavPanel(table); // Refresh panel
                         processScheduleTable(); // Refresh schedule colors
+                        injectInlineScoreUI(table); // Refresh inline score UI
+                        autoDoubleScore(table); // Tự động điền + lưu điểm x2
                     }, 300);
                 });
 
                 observer.observe(tbody, {
                     childList: true,
-                    subtree: true,
-                    characterData: true
+                    subtree: true
                 });
             }
 
@@ -1215,6 +2108,11 @@
 
     // Chạy sau khi page load hoàn toàn
     function startExtension() {
+        // Tránh chạy extension bên trong các iframe ẩn
+        if (window.top !== window.self) return;
+
+        forceLightChrome();
+
         if (isInputScorePage()) {
             initScorePage();
         } else {
