@@ -625,6 +625,31 @@
             headerRow.appendChild(scoreTh);
         }
 
+        // Nút "Lưu tất cả" cạnh tiêu đề Nhập điểm
+        let bulkSaveBtn = scoreTh.querySelector(".e360-bulk-save-btn");
+        if (!bulkSaveBtn) {
+            bulkSaveBtn = document.createElement("button");
+            bulkSaveBtn.type = "button";
+            bulkSaveBtn.className = "e360-bulk-save-btn";
+            bulkSaveBtn.textContent = "Lưu tất cả";
+            bulkSaveBtn.title = "Lưu toàn bộ điểm đã nhập (sau khi GT1 nhập xong)";
+            bulkSaveBtn.disabled = true;
+            scoreTh.style.display = "flex";
+            scoreTh.style.alignItems = "center";
+            scoreTh.style.gap = "6px";
+            scoreTh.style.flexWrap = "wrap";
+            scoreTh.appendChild(bulkSaveBtn);
+        }
+
+        if (!bulkSaveBtn.dataset.bound) {
+            bulkSaveBtn.dataset.bound = "1";
+            bulkSaveBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                bulkSaveAllScores(table);
+            };
+        }
+
         // 2. Tìm index của cột "Nộp bài?" và đổi tên thành "Điểm"
         let submitColIdx = -1;
         const ths = headerRow.querySelectorAll("th");
@@ -912,6 +937,9 @@
                             }));
                         } catch (err) {}
 
+                        // Cập nhật nút Lưu tất cả
+                        try { updateBulkSaveButtonState(table); } catch (e) { }
+
                         // Tự ẩn thông báo trạng thái sau 3s
                         setTimeout(() => {
                             if (statusDiv.innerText === "✅ Đã lưu") {
@@ -1064,6 +1092,7 @@
             try { localStorage.setItem(guardKey, baseScoreText); } catch (e) { }
         });
         updateBulkSignButtonState(table);
+        updateBulkSaveButtonState(table);
     }
 
     // Cập nhật trạng thái nút "Ký tất cả" (chỉ bật khi tất cả SV đã có điểm)
@@ -1159,6 +1188,117 @@
             setTimeout(signNext, 500);
         }
         signNext();
+    }
+
+    // Cập nhật trạng thái nút "Lưu tất cả" (bật khi có ít nhất 1 ô điểm chưa lưu)
+    function updateBulkSaveButtonState(table) {
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty"));
+        let hasPending = false;
+        rows.forEach(row => {
+            if (isDATNRow(row, table)) return;
+            const tdScore = row.querySelector(".e360-col-score-td");
+            const input = tdScore ? tdScore.querySelector(".e360-score-input") : null;
+            const statusDiv = tdScore ? tdScore.querySelector(".e360-score-status") : null;
+            if (input && input.value.trim() !== "") {
+                const statusText = statusDiv ? (statusDiv.innerText || "") : "";
+                if (!statusText.includes("Đã lưu")) hasPending = true;
+            }
+        });
+        const btns = table.querySelectorAll(".e360-bulk-save-btn");
+        btns.forEach(btn => {
+            btn.disabled = !hasPending;
+        });
+    }
+
+    // Lưu toàn bộ điểm đã nhập (sau khi GT1 nhập xong)
+    function bulkSaveAllScores(table) {
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty"));
+
+        // Thu thập các hàng có điểm chưa lưu
+        const pending = [];
+        rows.forEach(row => {
+            if (isDATNRow(row, table)) return;
+            const tdScore = row.querySelector(".e360-col-score-td");
+            const input = tdScore ? tdScore.querySelector(".e360-score-input") : null;
+            const statusDiv = tdScore ? tdScore.querySelector(".e360-score-status") : null;
+            if (!input) return;
+            const val = input.value.trim();
+            if (val === "") return;
+            const scoreNum = parseFloat(val.replace(",", "."));
+            if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 10) return;
+            const statusText = statusDiv ? (statusDiv.innerText || "") : "";
+            if (statusText.includes("Đã lưu")) return;
+            pending.push({ row, input, statusDiv, studentId: input.dataset.id, score: val });
+        });
+
+        if (pending.length === 0) {
+            alert("✅ Không có điểm nào cần lưu.");
+            return;
+        }
+
+        const btns = table.querySelectorAll(".e360-bulk-save-btn");
+        btns.forEach(b => { b.disabled = true; b.textContent = "Đang lưu..."; });
+
+        let idx = 0;
+        let saved = 0;
+        let failed = 0;
+        function saveNext() {
+            if (idx >= pending.length) {
+                btns.forEach(b => { b.disabled = false; b.textContent = "Lưu tất cả"; });
+                updateBulkSaveButtonState(table);
+                alert("✅ Đã lưu " + saved + " điểm" + (failed ? " (" + failed + " lỗi)" : "") + ".");
+                return;
+            }
+            const item = pending[idx++];
+            const { input, statusDiv, studentId, score } = item;
+            input.disabled = true;
+            if (statusDiv) {
+                statusDiv.className = "e360-score-status loading";
+                statusDiv.innerText = "⏳ Đang lưu...";
+            }
+            saveScoreViaIframe(studentId, score, (success, msg) => {
+                input.disabled = false;
+                if (success) {
+                    saved++;
+                    if (statusDiv) {
+                        statusDiv.className = "e360-score-status success";
+                        statusDiv.innerText = "✅ Đã lưu";
+                    }
+                    input.classList.add("saved-flash");
+                    setTimeout(() => input.classList.remove("saved-flash"), 2000);
+                    const scoreElem = item.row.querySelector('[id^="scoreWrap_"]');
+                    if (scoreElem) scoreElem.innerText = score;
+                    try {
+                        localStorage.setItem("e360_score_updated", JSON.stringify({
+                            itemId: parseInt(studentId, 10),
+                            score: score,
+                            ts: Date.now()
+                        }));
+                    } catch (e) { }
+                    setTimeout(() => {
+                        if (statusDiv && statusDiv.innerText === "✅ Đã lưu") {
+                            statusDiv.className = "e360-score-status";
+                            statusDiv.innerText = "";
+                        }
+                    }, 3000);
+                } else {
+                    failed++;
+                    if (statusDiv) {
+                        statusDiv.className = "e360-score-status error";
+                        statusDiv.innerText = "❌ " + (msg || "Lỗi lưu");
+                    }
+                    input.classList.add("error-shake");
+                }
+                setTimeout(saveNext, 300);
+            });
+        }
+        saveNext();
     }
 
     var _flcRunning = false;
@@ -1291,6 +1431,8 @@
 
             // Cập nhật trạng thái nút Ký tất cả
             updateBulkSignButtonState(table);
+            // Cập nhật trạng thái nút Lưu tất cả
+            updateBulkSaveButtonState(table);
 
             // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
             autoDoubleScore(table);
@@ -1310,6 +1452,7 @@
                         injectInlineScoreUI(table); // Refresh inline score UI
                         stripUsbLabels(document); // Xóa text USB:xxx
                         updateBulkSignButtonState(table); // Cập nhật nút Ký tất cả
+                        updateBulkSaveButtonState(table); // Cập nhật nút Lưu tất cả
                         autoDoubleScore(table); // Tự động điền + lưu điểm x2
                     }, 300);
                 });
