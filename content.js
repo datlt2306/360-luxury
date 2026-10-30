@@ -993,7 +993,7 @@
         try {
             const sidebar = document.querySelector(".sidebar-menu, .main-sidebar, body");
             const text = sidebar ? (sidebar.innerText || "") : (document.body.innerText || "");
-            const m = text.match(/GT[:\s]*(\d+)/i);
+            const m = text.match(/GT[^0-9]{0,6}(\d+)/i);
             if (m) return parseInt(m[1], 10);
         } catch (e) { }
         return null;
