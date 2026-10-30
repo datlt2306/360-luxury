@@ -82,11 +82,48 @@
         const container = document.createElement("div");
         container.id = "column-toggle-container";
 
+        // Style vị trí góc phải trên
+        Object.assign(container.style, {
+            position: "fixed",
+            top: "12px",
+            right: "20px",
+            zIndex: "999998",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "6px"
+        });
+
+        // Nút chính (toggle) để hiển thị/ẩn panel cột
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "column-btn column-toggle-main-btn";
+        toggleBtn.textContent = "☰ Cột";
+        toggleBtn.title = "Hiển thị/ẩn các cột";
+        container.appendChild(toggleBtn);
+
+        // Panel chứa các nút cột (ẩn mặc định)
+        const panel = document.createElement("div");
+        panel.className = "column-toggle-panel";
+        Object.assign(panel.style, {
+            display: "none",
+            flexDirection: "column",
+            gap: "6px",
+            padding: "10px",
+            background: "rgba(255,255,255,0.95)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid var(--apple-border, rgba(0,0,0,0.08))",
+            borderRadius: "12px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            maxWidth: "260px"
+        });
+        container.appendChild(panel);
+
         // Nút "Hiển thị tất cả"
         const showAllBtn = document.createElement("button");
         showAllBtn.textContent = "↻ Hiện tất cả";
         showAllBtn.className = "column-btn show-all-btn";
-        container.appendChild(showAllBtn);
+        panel.appendChild(showAllBtn);
 
         const columnButtons = [];
 
@@ -94,7 +131,6 @@
             const colName = (th.innerText || "").trim();
             // Các cột Chữ ký & Nhập điểm (custom) luôn hiển thị, không cho toggle
             if (th.classList.contains("e360-custom-col") || colName === "Chữ ký" || colName === "Nhập điểm") {
-                // Đảm bảo luôn hiện
                 state[i] = true;
                 const rows = table.rows;
                 for (let r = 0; r < rows.length; r++) {
@@ -108,10 +144,9 @@
             btn.textContent = colName || `Cột ${i + 1}`;
             btn.className = "column-btn";
 
-            // Mặc định ẩn 3 cột: Ghi chú điểm danh, Nhận xét/ghi chú nộp bài, AF/CC
             if (state[i] === undefined) {
-                const isDefaultHidden = DEFAULT_HIDDEN_COLUMNS.some(dh => 
-                    colName.toLowerCase().includes(dh.toLowerCase()) || 
+                const isDefaultHidden = DEFAULT_HIDDEN_COLUMNS.some(dh =>
+                    colName.toLowerCase().includes(dh.toLowerCase()) ||
                     (dh === "AF/CC" && (colName.includes("AF") || colName.includes("CC")))
                 );
                 state[i] = !isDefaultHidden;
@@ -129,15 +164,28 @@
             };
 
             columnButtons.push(btn);
-            container.appendChild(btn);
+            panel.appendChild(btn);
         });
 
-        // Gắn sự kiện cho nút "Hiện tất cả"
         showAllBtn.onclick = () => {
             showAllColumns(table, state, columnButtons);
         };
 
-        table.parentNode.insertBefore(container, table);
+        // Toggle panel
+        toggleBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            panel.style.display = panel.style.display === "none" ? "flex" : "none";
+        };
+
+        // Click outside to close
+        document.addEventListener("click", (e) => {
+            if (!container.contains(e.target)) {
+                panel.style.display = "none";
+            }
+        });
+
+        document.body.appendChild(container);
     }
 
 
