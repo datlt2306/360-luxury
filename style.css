@@ -1691,3 +1691,9 @@ section.content-header-big .main-action input[type="search"] {
 .fixed .right-side {
     padding-top: 125px !important;
 }
+
+/* Ẩn number-pc-container */
+#number-pc-container,
+.number-pc-container {
+    display: none !important;
+}
