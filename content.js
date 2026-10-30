@@ -848,7 +848,6 @@
             wrap.innerHTML = `
                 <div class="e360-inline-score-row">
                     <input type="text" class="e360-score-input" data-id="${studentId}" value="${currentScore}" placeholder="Điểm" title="Nhập điểm (0 - 10) rồi bấm Lưu hoặc Enter" maxlength="4">
-                    <button type="button" class="e360-btn-x2" data-id="${studentId}" title="Nhân đôi điểm (x2)">×2</button>
                     <button type="button" class="e360-btn-save" data-id="${studentId}" title="Lưu điểm (hoặc nhấn Enter)">Lưu</button>
                 </div>
                 <div class="e360-score-status" data-id="${studentId}"></div>
@@ -858,38 +857,7 @@
 
             const input = wrap.querySelector(".e360-score-input");
             const btnSave = wrap.querySelector(".e360-btn-save");
-            const btnX2 = wrap.querySelector(".e360-btn-x2");
             const statusDiv = wrap.querySelector(".e360-score-status");
-
-            // Nút x2 điểm: nhân đôi giá trị trong ô input
-            if (btnX2) {
-                btnX2.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Lấy điểm từ cột "Điểm" (scoreElem) để nhân đôi
-                    let baseScore = "";
-                    if (scoreElem) {
-                        const s = (scoreElem.innerText || "").trim();
-                        if (s && s.toUpperCase() !== "N/A" && s !== "..." && s !== "") {
-                            baseScore = s;
-                        }
-                    }
-                    if (!baseScore) {
-                        baseScore = input.value.trim();
-                    }
-                    const num = parseFloat(String(baseScore).replace(",", "."));
-                    if (isNaN(num)) {
-                        input.value = "";
-                        input.focus();
-                        return;
-                    }
-                    let doubled = num * 2;
-                    if (doubled > 10) doubled = 10;
-                    input.value = doubled.toFixed(1);
-                    input.classList.remove("error-shake");
-                    input.focus();
-                };
-            }
 
             // Hàm thực hiện lưu điểm
             const doSave = () => {

@@ -1631,33 +1631,6 @@ section.content-header-big .main-action input[type="search"] {
     display: table-cell !important;
 }
 
-/* Nút x2 điểm inline */
-.e360-btn-x2 {
-    height: 36px !important;
-    padding: 0 12px !important;
-    background: #ff9500 !important;
-    color: #ffffff !important;
-    border: none !important;
-    border-radius: var(--apple-radius-sm) !important;
-    font-size: 14px !important;
-    font-weight: 700 !important;
-    cursor: pointer !important;
-    line-height: 36px !important;
-    transition: all 0.15s ease !important;
-    user-select: none !important;
-    box-shadow: 0 2px 6px rgba(255, 149, 0, 0.25) !important;
-    margin-right: 4px !important;
-}
-
-.e360-btn-x2:hover {
-    background: #ffaa33 !important;
-    transform: translateY(-0.5px) !important;
-}
-
-.e360-btn-x2:active {
-    transform: scale(0.97) !important;
-}
-
 /* Nút Ký tất cả trong header cột Chữ ký */
 .e360-bulk-sign-btn {
     margin-top: 4px !important;
