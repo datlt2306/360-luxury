@@ -189,65 +189,6 @@
     }
 
 
-    function injectSidebarToggle() {
-        const sidebar = document.querySelector("aside.main-sidebar");
-        if (!sidebar) return;
-
-        const contentWrapper = document.querySelector("div.content-wrapper");
-        const mainHeader = document.querySelector("header.main-header");
-        const wrapper = document.querySelector("div.wrapper");
-
-        // Xóa nút cũ nếu có
-        const oldBtn = document.getElementById("sidebar-toggle-btn");
-        if (oldBtn) oldBtn.remove();
-
-        // Load trạng thái từ localStorage
-        const isVisible = localStorage.getItem(SIDEBAR_STORAGE_KEY) !== "false";
-
-        // Áp dụng trạng thái
-        sidebar.style.display = isVisible ? "" : "none";
-        if (contentWrapper) {
-            contentWrapper.style.marginLeft = isVisible ? "" : "5px";
-        }
-        if (mainHeader) {
-            mainHeader.style.display = isVisible ? "" : "none";
-        }
-
-        // Tạo nút toggle
-        const btn = document.createElement("button");
-        btn.id = "sidebar-toggle-btn";
-        btn.textContent = isVisible ? "◀ Ẩn Sidebar" : "▶ Hiện Sidebar";
-        btn.className = "column-btn sidebar-toggle-btn" + (isVisible ? "" : " hidden");
-
-        btn.onclick = () => {
-            const currentlyVisible = sidebar.style.display !== "none";
-            const newVisible = !currentlyVisible;
-
-            sidebar.style.display = newVisible ? "" : "none";
-            localStorage.setItem(SIDEBAR_STORAGE_KEY, newVisible);
-
-            // Điều chỉnh margin-left của content-wrapper
-            if (contentWrapper) {
-                contentWrapper.style.marginLeft = newVisible ? "" : "5px";
-            }
-
-            // Ẩn/hiện main-header
-            if (mainHeader) {
-                mainHeader.style.display = newVisible ? "" : "none";
-            }
-
-            btn.textContent = newVisible ? "◀ Ẩn Sidebar" : "▶ Hiện Sidebar";
-            if (newVisible) btn.classList.remove("hidden");
-            else btn.classList.add("hidden");
-        };
-
-        // Thêm vào container của column toggles
-        const container = document.getElementById("column-toggle-container");
-        if (container) {
-            container.appendChild(btn);
-        }
-    }
-
     // Chuyển đổi radio điểm danh thành công tắc gạt Apple Cupertino Segmented Switch
     function transformCheckInToSegmentedSwitch(table) {
         if (!table) return;
@@ -1318,9 +1259,6 @@
 
             // Áp dụng trạng thái đã lưu cho tất cả rows hiện có
             applyStateToAllRows(table, state);
-
-            // Inject sidebar toggle button
-            injectSidebarToggle();
 
             // Chuyển đổi radio điểm danh thành Apple Cupertino Segmented Switch
             transformCheckInToSegmentedSwitch(table);
