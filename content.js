@@ -982,10 +982,15 @@
             input.addEventListener("blur", () => {
                 try {
                     window.__e360Editing = window.__e360Editing || {};
-                    window.__e360Editing[studentId] = Date.now() + 3000;
+                    window.__e360Editing[studentId] = Date.now() + randomDelayMs();
                 } catch (e) { }
             });
         });
+    }
+
+    // Delay ngẫu nhiên 1-4s giống người thật
+    function randomDelayMs() {
+        return Math.floor(1000 + Math.random() * 3000);
     }
 
     // Phát hiện số giám thị hiện tại từ sidebar (GT:1 / GT:2)
@@ -1046,7 +1051,7 @@
             // Nếu người dùng đang gõ thì không tự động
             if (document.activeElement === input) return;
 
-            // Guard: nếu vừa chỉnh sửa ô này trong 3s qua thì không tự động (tránh ghi đè khi reload)
+            // Guard: nếu vừa chỉnh sửa ô này trong khoảng nghỉ ngẫu nhiên (1-4s) thì không tự động (tránh ghi đè khi reload)
             try {
                 const editingUntil = (window.__e360Editing && window.__e360Editing[studentId]) || 0;
                 if (editingUntil > Date.now()) return;
@@ -1057,11 +1062,29 @@
             if (curInputVal !== "" && curInputVal !== baseScoreText) return;
 
             const doubled = Math.min(10, baseNum * 2);
-            console.log("[E360-AutoDouble] filling student", studentId, baseNum, "->", doubled.toFixed(1));
-            input.value = doubled.toFixed(1);
 
-            // Lưu qua iframe
-            saveScoreViaIframe(studentId, doubled.toFixed(1), (success, msg) => {
+            // Đánh dấu đã xử lý base score này ngay (tránh schedule trùng)
+            try { localStorage.setItem(guardKey, baseScoreText); } catch (e) { }
+
+            // Delay ngẫu nhiên 1-4s giống người thật trước khi tự nhập + lưu
+            const humanDelay = randomDelayMs();
+            console.log("[E360-AutoDouble] schedule student", studentId, baseNum, "->", doubled.toFixed(1), "in", humanDelay, "ms");
+
+            setTimeout(() => {
+                // Re-check trước khi điền (tránh đè nếu người dùng vừa thao tác)
+                if (document.activeElement === input) return;
+                const nowVal = input.value.trim();
+                if (nowVal !== "" && nowVal !== baseScoreText) return;
+                try {
+                    const editingUntil = (window.__e360Editing && window.__e360Editing[studentId]) || 0;
+                    if (editingUntil > Date.now()) return;
+                } catch (e) { }
+
+                console.log("[E360-AutoDouble] filling student", studentId, baseNum, "->", doubled.toFixed(1));
+                input.value = doubled.toFixed(1);
+
+                // Lưu qua iframe
+                saveScoreViaIframe(studentId, doubled.toFixed(1), (success, msg) => {
                 if (success) {
                     if (statusDiv) {
                         statusDiv.className = "e360-score-status success";
@@ -1089,10 +1112,8 @@
                         statusDiv.innerText = "❌ " + (msg || "Lỗi lưu");
                     }
                 }
-            });
-
-            // Đánh dấu đã xử lý base score này
-            try { localStorage.setItem(guardKey, baseScoreText); } catch (e) { }
+                });
+            }, humanDelay);
         });
         updateBulkSignButtonState(table);
         updateBulkSaveButtonState(table);
