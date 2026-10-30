@@ -10,9 +10,6 @@
 
     const TABLE_ID = "checkInTable";
     const STORAGE_KEY = "columnToggleState_v3";
-    const HEADER_STORAGE_KEY = "headerSectionVisible_v1";
-    const SIDEBAR_STORAGE_KEY = "sidebarVisible_v1";
-    const SELECTED_SV_STORAGE_KEY = "selectedStudentIndex_v1";
     const DEFAULT_HIDDEN_COLUMNS = ["Ghi chú điểm danh", "Nhận xét/ghi chú nộp bài", "AF/CC"];
 
     function loadState() {
@@ -37,39 +34,6 @@
                 if (cell) cell.style.display = isVisible ? "" : "none";
             }
         });
-    }
-
-    function toggleColumn(table, idx) {
-        const rows = table.rows;
-        if (!rows[0] || !rows[0].cells[idx]) return true;
-
-        const isCurrentlyHidden = rows[0].cells[idx].style.display === "none";
-        const shouldBeVisible = isCurrentlyHidden;
-
-        for (let r = 0; r < rows.length; r++) {
-            const cell = rows[r].cells[idx];
-            if (cell) cell.style.display = shouldBeVisible ? "" : "none";
-        }
-
-        return shouldBeVisible;
-    }
-
-    function showAllColumns(table, state, buttons) {
-        const rows = table.rows;
-        const colCount = rows[0] ? rows[0].cells.length : 0;
-
-        for (let i = 0; i < colCount; i++) {
-            state[i] = true;
-            for (let r = 0; r < rows.length; r++) {
-                const cell = rows[r].cells[i];
-                if (cell) cell.style.display = "";
-            }
-        }
-
-        // Cập nhật class của tất cả buttons
-        buttons.forEach(btn => btn.classList.remove("hidden"));
-
-        saveState(state);
     }
 
     function injectButtons(table, state) {
@@ -120,15 +84,6 @@
             overflowY: "auto"
         });
         container.appendChild(panel);
-
-        // Nút "Hiện tất cả"
-        const showAllBtn = document.createElement("button");
-        showAllBtn.textContent = "↻ Hiện tất cả";
-        showAllBtn.className = "column-btn show-all-btn";
-        panel.appendChild(showAllBtn);
-
-        const columnButtons = [];
-        const checkboxRows = [];
 
         headerCells.forEach((th, i) => {
             const colName = (th.innerText || "").trim();
@@ -183,26 +138,8 @@
 
             row.appendChild(cb);
             row.appendChild(text);
-            checkboxRows.push(row);
             panel.appendChild(row);
-            columnButtons.push({ idx: i, cb });
         });
-
-        showAllBtn.onclick = () => {
-            // Hiện tất cả cột
-            const rows = table.rows;
-            const colCount = rows[0] ? rows[0].cells.length : 0;
-            for (let i = 0; i < colCount; i++) {
-                state[i] = true;
-                for (let r = 0; r < rows.length; r++) {
-                    const cell = rows[r].cells[i];
-                    if (cell) cell.style.display = "";
-                }
-            }
-            // update checkboxes
-            panel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
-            saveState(state);
-        };
 
         // Toggle panel
         toggleBtn.onclick = (e) => {
@@ -247,14 +184,17 @@
             const text = (th.textContent || th.innerText).trim().toLowerCase();
             if (text.includes("điểm danh") && !text.includes("ghi chú")) {
                 checkInIdx = idx;
+                th.classList.add("e360-col-checkin-th");
             }
         });
         if (checkInIdx === -1) checkInIdx = 7;
+        if (ths[checkInIdx]) ths[checkInIdx].classList.add("e360-col-checkin-th");
 
         const rows = tbody.querySelectorAll("tr");
         rows.forEach(row => {
             const checkInCell = row.cells[checkInIdx];
             if (!checkInCell) return;
+            checkInCell.classList.add("e360-col-checkin-td");
 
             // Đã chuyển đổi rồi thì không làm lại
             if (checkInCell.querySelector(".e360-checkin-switch")) return;
@@ -859,6 +799,17 @@
                 }
             }
 
+            // Nếu người dùng là GT2 và điểm hiện tại <= 5.0 (điểm chia đôi tạm thời của GT1)
+            // thì tự động hiển thị trước điểm gốc đã khôi phục (VD: 4.3 -> 8.5, 4.8 -> 9.5)
+            const currentGT = getCurrentGTNumber();
+            if (currentGT === 2 && currentScore !== "") {
+                const sNum = parseFloat(currentScore.replace(",", "."));
+                if (!isNaN(sNum) && sNum > 0 && sNum <= 5.0) {
+                    const rec = recoverOriginalScore(sNum);
+                    currentScore = (rec % 1 === 0) ? rec.toString() : rec.toFixed(1);
+                }
+            }
+
             // Nếu đã chèn rồi trong tdScore, kiểm tra xem có cần đồng bộ giá trị không
             const existingWrap = tdScore.querySelector(".e360-inline-score-wrap");
             if (existingWrap) {
@@ -962,12 +913,22 @@
                 doSave();
             };
 
-            // Sự kiện gõ phím Enter trên ô input
+            // Sự kiện gõ phím Enter trên ô input (lưu và tự động chuyển xuống SV kế tiếp)
             input.onkeydown = (e) => {
                 if (e.key === "Enter") {
                     e.preventDefault();
                     e.stopPropagation();
                     doSave();
+
+                    // Tự động nhảy sang ô nhập điểm của SV tiếp theo
+                    const allInputs = Array.from(table.querySelectorAll(".e360-score-input"));
+                    const curIdx = allInputs.indexOf(input);
+                    if (curIdx !== -1 && curIdx + 1 < allInputs.length) {
+                        setTimeout(() => {
+                            allInputs[curIdx + 1].focus();
+                            allInputs[curIdx + 1].select();
+                        }, 50);
+                    }
                 }
             };
 
@@ -1004,12 +965,31 @@
         return null;
     }
 
-    // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
-    // Chỉ GT2 tự động (GT1 nhập → GT2 auto lưu ×2)
+    // Khôi phục điểm gốc của GT1 từ điểm trung bình tạm thời bị E360 chia đôi và làm tròn
+    function recoverOriginalScore(halvedScore) {
+        if (typeof halvedScore !== "number" || isNaN(halvedScore)) return 0;
+        // Nếu số đã có nhiều hơn 1 chữ số thập phân (VD: 4.25 hoặc 4.75) thì nhân 2 trực tiếp
+        if (Math.round(halvedScore * 10) !== Math.round(halvedScore * 100) / 10) {
+            return Math.min(10, Math.max(0, Math.round(halvedScore * 2 * 10) / 10));
+        }
+        const tenths = Math.abs(Math.round(halvedScore * 10) % 10);
+        let original = halvedScore * 2;
+        if (tenths === 3 || tenths === 8) {
+            // Xuất phát từ đuôi .25 hoặc .75 bị E360 làm tròn 1 chữ số thập phân (.3 hoặc .8)
+            // Ví dụ: 8.5 / 2 = 4.25 -> E360 làm tròn 4.3 -> Khôi phục: 4.3 * 2 - 0.1 = 8.5
+            //        9.5 / 2 = 4.75 -> E360 làm tròn 4.8 -> Khôi phục: 4.8 * 2 - 0.1 = 9.5
+            //        7.5 / 2 = 3.75 -> E360 làm tròn 3.8 -> Khôi phục: 3.8 * 2 - 0.1 = 7.5
+            //        6.5 / 2 = 3.25 -> E360 làm tròn 3.3 -> Khôi phục: 3.3 * 2 - 0.1 = 6.5
+            original = original - 0.1;
+        }
+        return Math.min(10, Math.max(0, Math.round(original * 10) / 10));
+    }
+
+    // Tự động điền + lưu điểm đồng bộ điểm GT1 khi phát hiện GT1 đã chấm (fake real-time)
+    // Chỉ GT2 tự động (GT1 nhập → GT2 auto lưu đúng điểm gốc của GT1)
     function autoDoubleScore(table) {
         if (!table) return;
         const currentGT = getCurrentGTNumber();
-        console.log("[E360-AutoDouble] currentGT =", currentGT);
         if (currentGT !== 2) return;
         const tbody = table.querySelector("tbody");
         if (!tbody) return;
@@ -1036,7 +1016,7 @@
             const lastBase = localStorage.getItem(guardKey);
             if (lastBase === baseScoreText) return;
 
-            // Guard 2: nếu scoreElem đang là giá trị chúng ta đã tự lưu (×2) thì bỏ qua
+            // Guard 2: nếu scoreElem đang là giá trị chúng ta đã tự lưu thì bỏ qua
             const savedKey = "e360_autodouble_saved_" + studentId;
             const lastSaved = localStorage.getItem(savedKey);
             if (lastSaved === baseScoreText) return;
@@ -1057,51 +1037,53 @@
                 if (editingUntil > Date.now()) return;
             } catch (e) { }
 
-            // Chỉ tự động nếu ô input đang trống hoặc đang chứa đúng điểm GT1 (chưa nhân đôi)
-            const curInputVal = input.value.trim();
-            if (curInputVal !== "" && curInputVal !== baseScoreText) return;
+            // Tính điểm gốc của GT1 (khử sai số chia đôi và làm tròn của E360)
+            const targetScore = recoverOriginalScore(baseNum);
+            const targetScoreStr = (targetScore % 1 === 0) ? targetScore.toString() : targetScore.toFixed(1);
 
-            const doubled = Math.min(10, baseNum * 2);
+            // Chỉ tự động nếu ô input đang trống, đang chứa điểm chia đôi, hoặc đã chứa đúng targetScoreStr
+            const curInputVal = input.value.trim();
+            if (curInputVal !== "" && curInputVal !== baseScoreText && curInputVal !== targetScoreStr) return;
 
             // Đánh dấu đã xử lý base score này ngay (tránh schedule trùng)
             try { localStorage.setItem(guardKey, baseScoreText); } catch (e) { }
 
             // Delay ngẫu nhiên 1-4s giống người thật trước khi tự nhập + lưu
             const humanDelay = randomDelayMs();
-            console.log("[E360-AutoDouble] schedule student", studentId, baseNum, "->", doubled.toFixed(1), "in", humanDelay, "ms");
+            console.log("[E360-AutoDouble] schedule student", studentId, baseNum, "->", targetScoreStr, "in", humanDelay, "ms");
 
             setTimeout(() => {
                 // Re-check trước khi điền (tránh đè nếu người dùng vừa thao tác)
                 if (document.activeElement === input) return;
                 const nowVal = input.value.trim();
-                if (nowVal !== "" && nowVal !== baseScoreText) return;
+                if (nowVal !== "" && nowVal !== baseScoreText && nowVal !== targetScoreStr) return;
                 try {
                     const editingUntil = (window.__e360Editing && window.__e360Editing[studentId]) || 0;
                     if (editingUntil > Date.now()) return;
                 } catch (e) { }
 
-                console.log("[E360-AutoDouble] filling student", studentId, baseNum, "->", doubled.toFixed(1));
-                input.value = doubled.toFixed(1);
+                console.log("[E360-AutoDouble] filling student", studentId, baseNum, "->", targetScoreStr);
+                input.value = targetScoreStr;
 
                 // Lưu qua iframe
-                saveScoreViaIframe(studentId, doubled.toFixed(1), (success, msg) => {
+                saveScoreViaIframe(studentId, targetScoreStr, (success, msg) => {
                 if (success) {
                     if (statusDiv) {
                         statusDiv.className = "e360-score-status success";
-                        statusDiv.innerText = "✅ Tự động lưu x2";
+                        statusDiv.innerText = `✅ Tự động lưu (${targetScoreStr})`;
                     }
                     input.classList.add("saved-flash");
                     setTimeout(() => input.classList.remove("saved-flash"), 2000);
                     try {
                         localStorage.setItem("e360_score_updated", JSON.stringify({
                             itemId: parseInt(studentId, 10),
-                            score: doubled.toFixed(1),
+                            score: targetScoreStr,
                             ts: Date.now()
                         }));
-                        localStorage.setItem(savedKey, doubled.toFixed(1));
+                        localStorage.setItem(savedKey, targetScoreStr);
                     } catch (e) { }
                     setTimeout(() => {
-                        if (statusDiv && statusDiv.innerText === "✅ Tự động lưu x2") {
+                        if (statusDiv && statusDiv.innerText.includes("Tự động lưu")) {
                             statusDiv.className = "e360-score-status";
                             statusDiv.innerText = "";
                         }
@@ -1202,9 +1184,10 @@
             const sigContainer = row.querySelector(".e360-signature-container");
             const cb = sigContainer ? sigContainer.querySelector('input[type="checkbox"]') : row.querySelector('input[type="checkbox"]');
             if (cb) {
-                if (!cb.checked) cb.checked = true;
-                cb.click();
-                cb.dispatchEvent(new Event("change", { bubbles: true }));
+                if (!cb.checked) {
+                    cb.click();
+                    cb.dispatchEvent(new Event("change", { bubbles: true }));
+                }
             } else {
                 const btn = Array.from(row.querySelectorAll("a,button")).find(b => (b.innerText || "").includes("Ký"));
                 if (btn) btn.click();
@@ -1226,10 +1209,26 @@
             const tdScore = row.querySelector(".e360-col-score-td");
             const input = tdScore ? tdScore.querySelector(".e360-score-input") : null;
             const statusDiv = tdScore ? tdScore.querySelector(".e360-score-status") : null;
-            if (input && input.value.trim() !== "") {
-                const statusText = statusDiv ? (statusDiv.innerText || "") : "";
-                if (!statusText.includes("Đã lưu")) hasPending = true;
+            if (!input) return;
+            const val = input.value.trim();
+            if (val === "") return;
+
+            const statusText = statusDiv ? (statusDiv.innerText || "") : "";
+            // Nếu đã lưu thành công trong phiên hiện tại -> bỏ qua
+            if (statusText.includes("Đã lưu")) return;
+
+            // Nếu ô điểm trùng với điểm đã lưu trên hệ thống -> bỏ qua
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            const scoreText = scoreElem ? (scoreElem.innerText || "").trim() : "";
+            if (scoreText !== "" && scoreText.toUpperCase() !== "N/A" && scoreText !== "...") {
+                const curNum = parseFloat(val.replace(",", "."));
+                const sysNum = parseFloat(scoreText.replace(",", "."));
+                if (!isNaN(curNum) && !isNaN(sysNum) && Math.abs(curNum - sysNum) < 0.05) {
+                    return;
+                }
             }
+
+            hasPending = true;
         });
         const btns = table.querySelectorAll(".e360-bulk-save-btn");
         btns.forEach(btn => {
@@ -1258,6 +1257,17 @@
             if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 10) return;
             const statusText = statusDiv ? (statusDiv.innerText || "") : "";
             if (statusText.includes("Đã lưu")) return;
+
+            // Nếu đã trùng điểm đã lưu trên hệ thống thì không cần gửi lại
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            const scoreText = scoreElem ? (scoreElem.innerText || "").trim() : "";
+            if (scoreText !== "" && scoreText.toUpperCase() !== "N/A" && scoreText !== "...") {
+                const sysNum = parseFloat(scoreText.replace(",", "."));
+                if (!isNaN(sysNum) && Math.abs(scoreNum - sysNum) < 0.05) {
+                    return;
+                }
+            }
+
             pending.push({ row, input, statusDiv, studentId: input.dataset.id, score: val });
         });
 

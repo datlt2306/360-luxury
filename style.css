@@ -31,22 +31,52 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* Ép con trỏ pointer (hình bàn tay) cho toàn bộ các nút và điều khiển */
+button:not(:disabled),
+.btn:not(.disabled):not(:disabled),
+a.btn:not(.disabled),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+.column-btn:not(:disabled),
+.e360-btn-save:not(:disabled),
+.e360-bulk-sign-btn:not(:disabled),
+.e360-bulk-save-btn:not(:disabled),
+.e360-switch-item,
+.e360-switch-radio,
+.e360-sig-checkbox,
+label.btn,
+.column-toggle-panel label,
+.column-toggle-panel input,
+#checkInTable input[type="checkbox"],
+#checkInTable input[type="radio"] {
+    cursor: pointer !important;
+}
+
+button:disabled,
+.btn.disabled,
+.btn:disabled,
+[disabled] {
+    cursor: not-allowed !important;
+}
+
 /* Ẩn mục tiêu đề Menu cũ theo yêu cầu người dùng */
 .datatable-menu-title {
     display: none !important;
 }
 
-/* ==================== MAIN ACTION BUTTONS & CONTROLS (FONT 16PX) ==================== */
+/* ==================== MAIN ACTION BUTTONS & CONTROLS ==================== */
 .main-action .btn,
 #btnCheckInOutFilter,
 #btnPrintSchedule,
 #btnRefresh,
 #btnExportPDF {
-    font-size: 16px !important;
-    padding: 8px 18px !important;
+    font-size: 13px !important;
+    padding: 6px 14px !important;
     border-radius: var(--apple-radius-sm) !important;
     font-weight: 600 !important;
     line-height: 1.3 !important;
+    cursor: pointer !important;
     transition: all 0.15s ease !important;
 }
 
@@ -54,9 +84,9 @@ body {
 .main-action input[type="search"],
 #CheckInStatus,
 #CheckInOutFilter {
-    font-size: 16px !important;
-    height: 40px !important;
-    padding: 6px 12px !important;
+    font-size: 13px !important;
+    height: 34px !important;
+    padding: 4px 10px !important;
     border-radius: var(--apple-radius-sm) !important;
     border: 1px solid var(--apple-border) !important;
     outline: none !important;
@@ -65,28 +95,20 @@ body {
 /* ==================== APPLE SEGMENTED TOOLBAR ==================== */
 
 #column-toggle-container {
-    padding: 10px 14px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     z-index: 9999;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border: 1px solid var(--apple-border);
-    border-radius: var(--apple-radius-lg);
-    box-shadow: var(--apple-shadow-md);
-    margin-bottom: 16px;
 }
 
 .column-btn {
-    padding: 7px 15px !important;
+    padding: 6px 12px !important;
     border: 1px solid rgba(0, 0, 0, 0.1);
     background: #ffffff;
     border-radius: var(--apple-radius-sm);
-    cursor: pointer;
-    font-size: 16px !important;
+    cursor: pointer !important;
+    font-size: 13px !important;
     font-weight: 500;
     color: var(--apple-text-primary);
     display: inline-flex !important;
@@ -125,13 +147,6 @@ body {
 }
 
 /* Các nút điều khiển đặc biệt */
-.column-btn.show-all-btn {
-    background: rgba(52, 199, 89, 0.12) !important;
-    color: #15803d !important;
-    border: 1px solid rgba(52, 199, 89, 0.25) !important;
-    font-weight: 600;
-}
-
 .column-btn.header-toggle-btn {
     background: rgba(0, 113, 227, 0.1) !important;
     color: #0071e3 !important;
@@ -177,7 +192,7 @@ body {
 }
 
 .box-title {
-    font-size: 16px !important;
+    font-size: 14px !important;
     font-weight: 600 !important;
     color: var(--apple-text-primary) !important;
     letter-spacing: -0.01em;
@@ -201,10 +216,10 @@ body {
     background: #fafafc !important;
     color: var(--apple-text-secondary) !important;
     text-transform: uppercase !important;
-    font-size: 15px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     letter-spacing: 0.02em !important;
-    padding: 12px 10px !important;
+    padding: 10px 8px !important;
     border: none !important;
     border-bottom: 1px solid var(--apple-border) !important;
     text-align: left;
@@ -212,12 +227,12 @@ body {
 }
 
 #checkInTable tbody td {
-    padding: 12px 10px !important;
+    padding: 8px 8px !important;
     border: none !important;
     border-bottom: 1px solid var(--apple-border-subtle) !important;
     vertical-align: middle !important;
     background: transparent !important;
-    font-size: 16px !important;
+    font-size: 13px !important;
     color: var(--apple-text-primary) !important;
     line-height: 1.4 !important;
 }
@@ -336,7 +351,7 @@ body {
     white-space: nowrap !important;
     padding: 8px 6px !important;
     vertical-align: middle !important;
-    font-size: 16px !important;
+    font-size: 13px !important;
     font-weight: 700 !important;
 }
 
@@ -345,7 +360,7 @@ body {
 }
 
 #checkInTable td:nth-child(10) b[id^="scoreWrap_"] {
-    font-size: 18px !important;
+    font-size: 14px !important;
     font-weight: 700 !important;
     color: #0071e3 !important;
 }
@@ -507,13 +522,13 @@ body {
 }
 
 .e360-score-input {
-    width: 62px !important;
-    height: 36px !important;
+    width: 54px !important;
+    height: 32px !important;
     text-align: center;
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: var(--apple-radius-sm);
     padding: 2px 4px;
-    font-size: 16px !important;
+    font-size: 13px !important;
     font-weight: 700;
     color: var(--apple-text-primary);
     background-color: #ffffff;
@@ -540,16 +555,16 @@ body {
 }
 
 .e360-btn-save {
-    height: 36px !important;
-    padding: 0 16px !important;
+    height: 32px !important;
+    padding: 0 12px !important;
     background: #0071e3;
     color: #ffffff;
     border: none;
     border-radius: var(--apple-radius-sm);
-    font-size: 16px !important;
+    font-size: 13px !important;
     font-weight: 600;
-    cursor: pointer;
-    line-height: 36px !important;
+    cursor: pointer!important;
+    line-height: 32px !important;
     transition: all 0.15s ease;
     user-select: none;
     box-shadow: 0 2px 6px rgba(0, 113, 227, 0.25);
@@ -574,10 +589,10 @@ body {
 }
 
 .e360-score-status {
-    font-size: 11px;
+    font-size: 13px !important;
     font-weight: 600;
-    line-height: 14px;
-    min-height: 14px;
+    line-height: 16px;
+    min-height: 16px;
     display: none;
     white-space: nowrap;
 }
@@ -737,6 +752,8 @@ body {
 /* ==========================================================================
    Apple Cupertino Segmented Switch (Công tắc gạt Điểm danh: Có mặt / Muộn / Vắng)
    ========================================================================== */
+#checkInTable .e360-col-checkin-th,
+#checkInTable .e360-col-checkin-td,
 #checkInTable th:nth-child(8),
 #checkInTable td:nth-child(8) {
     width: 290px !important;
@@ -766,9 +783,9 @@ body {
     align-items: center !important;
     justify-content: center !important;
     gap: 6px !important;
-    padding: 5px 13px !important;
+    padding: 4px 10px !important;
     border-radius: 9999px !important;
-    font-size: 16px !important;
+    font-size: 13px !important;
     font-weight: 500 !important;
     color: #64748b !important;
     cursor: pointer !important;
@@ -890,7 +907,7 @@ body {
     border-radius: 0 !important;
     box-shadow: none !important;
     padding: 0 !important;
-    font-size: 16px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     line-height: 1.3 !important;
     white-space: nowrap !important;
@@ -1004,12 +1021,12 @@ body {
 }
 
 #scheduleTable tbody td {
-    padding: 12px 10px !important;
+    padding: 8px 8px !important;
     border: none !important;
     border-bottom: 1px solid var(--apple-border-subtle) !important;
     vertical-align: middle !important;
     background: transparent !important;
-    font-size: 16px !important;
+    font-size: 13px !important;
     color: var(--apple-text-primary) !important;
     line-height: 1.4 !important;
 }
@@ -1152,6 +1169,7 @@ body {
     font-size: 13px !important;
     padding: 6px 12px !important;
     border: none !important;
+    cursor: pointer !important;
     transition: all 0.15s ease !important;
     box-shadow: var(--apple-shadow-sm) !important;
 }
@@ -1208,7 +1226,7 @@ body {
     text-align: center !important;
     padding: 24px !important;
     color: var(--apple-text-secondary) !important;
-    font-size: 16px !important;
+    font-size: 13px !important;
 }
 
 /* Processing indicator */
@@ -1634,12 +1652,12 @@ section.content-header-big .main-action input[type="search"] {
 /* Nút Ký tất cả trong header cột Chữ ký */
 .e360-bulk-sign-btn {
     margin-top: 4px !important;
-    padding: 4px 10px !important;
+    padding: 3px 8px !important;
     background: #0071e3 !important;
     color: #ffffff !important;
     border: none !important;
     border-radius: var(--apple-radius-sm) !important;
-    font-size: 12px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     transition: all 0.15s ease !important;
@@ -1662,12 +1680,12 @@ section.content-header-big .main-action input[type="search"] {
 /* Nút Lưu tất cả điểm */
 .e360-bulk-save-btn {
     margin-top: 4px !important;
-    padding: 4px 10px !important;
+    padding: 3px 8px !important;
     background: #34c759 !important;
     color: #ffffff !important;
     border: none !important;
     border-radius: var(--apple-radius-sm) !important;
-    font-size: 12px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     transition: all 0.15s ease !important;
@@ -1690,7 +1708,7 @@ section.content-header-big .main-action input[type="search"] {
 /* Fixed layout: content-wrapper / right-side padding-top */
 .fixed .content-wrapper,
 .fixed .right-side {
-    padding-top: 125px !important;
+    padding-top: 80px !important;
 }
 
 /* Ẩn number-pc-container */
