@@ -102,30 +102,33 @@
         toggleBtn.title = "Hiển thị/ẩn các cột";
         container.appendChild(toggleBtn);
 
-        // Panel chứa các nút cột (ẩn mặc định)
+        // Panel chứa các checkbox cột (ẩn mặc định)
         const panel = document.createElement("div");
         panel.className = "column-toggle-panel";
         Object.assign(panel.style, {
             display: "none",
             flexDirection: "column",
-            gap: "6px",
+            gap: "4px",
             padding: "10px",
             background: "rgba(255,255,255,0.95)",
             backdropFilter: "blur(12px)",
             border: "1px solid var(--apple-border, rgba(0,0,0,0.08))",
             borderRadius: "12px",
             boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            maxWidth: "260px"
+            maxWidth: "260px",
+            maxHeight: "400px",
+            overflowY: "auto"
         });
         container.appendChild(panel);
 
-        // Nút "Hiển thị tất cả"
+        // Nút "Hiện tất cả"
         const showAllBtn = document.createElement("button");
         showAllBtn.textContent = "↻ Hiện tất cả";
         showAllBtn.className = "column-btn show-all-btn";
         panel.appendChild(showAllBtn);
 
         const columnButtons = [];
+        const checkboxRows = [];
 
         headerCells.forEach((th, i) => {
             const colName = (th.innerText || "").trim();
@@ -140,10 +143,6 @@
                 return;
             }
 
-            const btn = document.createElement("button");
-            btn.textContent = colName || `Cột ${i + 1}`;
-            btn.className = "column-btn";
-
             if (state[i] === undefined) {
                 const isDefaultHidden = DEFAULT_HIDDEN_COLUMNS.some(dh =>
                     colName.toLowerCase().includes(dh.toLowerCase()) ||
@@ -152,23 +151,57 @@
                 state[i] = !isDefaultHidden;
             }
 
-            if (state[i] === false) btn.classList.add("hidden");
+            // Checkbox + label
+            const row = document.createElement("label");
+            row.style.display = "flex";
+            row.style.alignItems = "center";
+            row.style.gap = "6px";
+            row.style.cursor = "pointer";
+            row.style.fontSize = "13px";
+            row.style.padding = "2px 0";
 
-            btn.onclick = () => {
-                const visible = toggleColumn(table, i);
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = state[i] !== false;
+            cb.style.accentColor = "#0071e3";
+            cb.style.cursor = "pointer";
+
+            const text = document.createElement("span");
+            text.textContent = colName || `Cột ${i + 1}`;
+
+            cb.onchange = () => {
+                const visible = cb.checked;
+                // toggle column
+                const rows = table.rows;
+                for (let r = 0; r < rows.length; r++) {
+                    const cell = rows[r].cells[i];
+                    if (cell) cell.style.display = visible ? "" : "none";
+                }
                 state[i] = visible;
                 saveState(state);
-
-                if (!visible) btn.classList.add("hidden");
-                else btn.classList.remove("hidden");
             };
 
-            columnButtons.push(btn);
-            panel.appendChild(btn);
+            row.appendChild(cb);
+            row.appendChild(text);
+            checkboxRows.push(row);
+            panel.appendChild(row);
+            columnButtons.push({ idx: i, cb });
         });
 
         showAllBtn.onclick = () => {
-            showAllColumns(table, state, columnButtons);
+            // Hiện tất cả cột
+            const rows = table.rows;
+            const colCount = rows[0] ? rows[0].cells.length : 0;
+            for (let i = 0; i < colCount; i++) {
+                state[i] = true;
+                for (let r = 0; r < rows.length; r++) {
+                    const cell = rows[r].cells[i];
+                    if (cell) cell.style.display = "";
+                }
+            }
+            // update checkboxes
+            panel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+            saveState(state);
         };
 
         // Toggle panel
