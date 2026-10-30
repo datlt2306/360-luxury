@@ -222,6 +222,18 @@
     }
 
 
+    // Xóa text "USB:xxx" dưới mã sinh viên
+    function stripUsbLabels(root) {
+        const scope = root || document;
+        scope.querySelectorAll("td").forEach(td => {
+            if (td.innerHTML && /USB:/i.test(td.innerHTML)) {
+                td.innerHTML = td.innerHTML
+                    .replace(/<br\s*\/?>\s*USB:[^<]*/gi, "")
+                    .replace(/USB:[^\n<]*/gi, "");
+            }
+        });
+    }
+
     // Chuyển đổi radio điểm danh thành công tắc gạt Apple Cupertino Segmented Switch
     function transformCheckInToSegmentedSwitch(table) {
         if (!table) return;
@@ -1246,9 +1258,12 @@
     function init() {
         // Ép tone sáng cho header/sidebar ngay lập tức
         forceLightChrome();
+        // Xóa text USB:xxx
+        stripUsbLabels(document);
         // Đợi 500ms để đảm bảo JS của website đã chạy xong
         setTimeout(() => {
             forceLightChrome();
+            stripUsbLabels(document);
             const table = document.getElementById(TABLE_ID);
             const scheduleTable = document.getElementById("scheduleTable");
 
@@ -1303,6 +1318,9 @@
             // Chèn UI nhập điểm inline cho các môn thường (không phải DATN)
             injectInlineScoreUI(table);
 
+            // Xóa text USB:xxx
+            stripUsbLabels(document);
+
             // Cập nhật trạng thái nút Ký tất cả
             updateBulkSignButtonState(table);
 
@@ -1322,6 +1340,7 @@
                         transformCheckInToSegmentedSwitch(table); // Cập nhật switch điểm danh
                         processScheduleTable(); // Refresh schedule colors
                         injectInlineScoreUI(table); // Refresh inline score UI
+                        stripUsbLabels(document); // Xóa text USB:xxx
                         updateBulkSignButtonState(table); // Cập nhật nút Ký tất cả
                         autoDoubleScore(table); // Tự động điền + lưu điểm x2
                     }, 300);
