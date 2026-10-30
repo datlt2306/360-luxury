@@ -1575,7 +1575,10 @@
         signNext();
     }
 
+    var _flcRunning = false;
     function forceLightChrome() {
+        if (_flcRunning) return;
+        _flcRunning = true;
         try {
             var targets = [
                 '.main-header',
@@ -1631,6 +1634,7 @@
                 }
             });
         } catch (e) { }
+        finally { _flcRunning = false; }
     }
 
     function init() {
@@ -1662,18 +1666,9 @@
                 bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
             } catch (e) { }
 
-            // Theo dõi liên tục để AdminLTE/theme không ghi đè lại màu
-            try {
-                var persistDebounce = null;
-                var persistObserver = new MutationObserver(function () {
-                    clearTimeout(persistDebounce);
-                    persistDebounce = setTimeout(function () { forceLightChrome(); }, 120);
-                });
-                persistObserver.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
-            } catch (e) { }
-
-            // Giữ style liên tục (AdminLTE có thể set inline sau load)
-            setInterval(function () { forceLightChrome(); }, 800);
+            // Giữ style liên tục (AdminLTE có thể set inline sau load).
+            // KHÔNG dùng MutationObserver trên toàn document (gây vòng lặp vô hạn reload).
+            setInterval(function () { forceLightChrome(); }, 2000);
 
             // Nếu không có bảng điểm thì dừng phần xử lý bảng điểm
             if (!table) return;
