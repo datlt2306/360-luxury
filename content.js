@@ -171,14 +171,13 @@
         topRow.style.alignItems = "center";
         topRow.style.gap = "8px";
 
-        // Badge chỉ thị chạy ngầm Apple Cupertino
+        // Badge chỉ thị chạy ngầm Apple Cupertino (chỉ hiện chấm xanh nhịp tim, không có chữ)
         const statusBadge = document.createElement("div");
         statusBadge.className = "e360-bg-status-badge";
         statusBadge.id = "e360-bg-status-badge";
-        statusBadge.title = `Auto chạy ngầm đang hoạt động (Đã quét ${bgHeartbeatCount} lần)`;
+        statusBadge.title = `Auto GT2 đang hoạt động (Đã quét ${bgHeartbeatCount} lần)`;
         statusBadge.innerHTML = `
             <span class="e360-pulse-dot"></span>
-            <span class="e360-status-text">Auto chạy ngầm</span>
         `;
         topRow.appendChild(statusBadge);
 
@@ -1622,11 +1621,28 @@
         console.log("[E360-AutoClose] Tất cả điểm và chữ ký đã hoàn tất! Chuẩn bị đóng ca thi...");
 
         exportBtn.dataset.origText = exportBtn.innerText;
-        exportBtn.innerText = "⏳ Tự động đóng ca thi sau 1.5s...";
+        exportBtn.innerText = "⏳ Đang chốt chữ ký và đóng ca thi (2.5s)...";
         exportBtn.classList.add("saved-flash");
 
         autoCloseTimer = setTimeout(() => {
             autoCloseTimer = null;
+
+            // Re-check để đảm bảo 100% server đã ghi nhận chữ ký của tất cả SV có mặt
+            const table = document.getElementById(TABLE_ID);
+            if (table) {
+                const tbody = table.querySelector("tbody");
+                const rows = tbody ? Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty") && !isDATNRow(r, table) && !isStudentAbsent(r)) : [];
+                const unsigned = rows.filter(r => !isStudentSigned(r));
+                if (unsigned.length > 0) {
+                    console.warn(`[E360-AutoClose] Hủy đóng: còn ${unsigned.length} SV chưa chốt xong chữ ký trên E360.`);
+                    exportBtn.innerText = exportBtn.dataset.origText || "Kết thúc ca thi";
+                    exportBtn.classList.remove("saved-flash");
+                    delete exportBtn.dataset.closed;
+                    isAutoClosing = false;
+                    return;
+                }
+            }
+
             isAutoClosing = true;
             exportBtn.dataset.closed = "1";
 
@@ -1676,7 +1692,7 @@
                 isAutoClosing = false;
             }, 2500);
 
-        }, 1500);
+        }, 2500);
     }
 
     // Kiểm tra xem sinh viên đã xác nhận chữ ký hay chưa
