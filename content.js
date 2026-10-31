@@ -903,14 +903,21 @@
                 }
             }
 
-            // Nếu người dùng là GT2 và điểm hiện tại <= 5.0 (điểm chia đôi tạm thời của GT1)
-            // thì tự động hiển thị trước điểm gốc đã khôi phục (VD: 4.3 -> 8.5, 4.8 -> 9.5)
-            const currentGT = getCurrentGTNumber();
-            if (currentGT === 2 && currentScore !== "") {
-                const sNum = parseFloat(currentScore.replace(",", "."));
-                if (!isNaN(sNum) && sNum > 0 && sNum <= 5.0) {
-                    const rec = recoverOriginalScore(sNum);
-                    currentScore = (rec % 1 === 0) ? rec.toString() : rec.toFixed(1);
+            // Nếu người dùng là GT2:
+            // 1. Nếu đã từng lưu điểm cho SV này rồi thì giữ nguyên điểm đã lưu
+            // 2. Nếu chưa từng lưu và điểm hiện tại <= 5.0 (điểm chia đôi tạm thời của GT1)
+            //    thì tự động hiển thị trước điểm gốc đã khôi phục (VD: 2.5 -> 5.0, 4.3 -> 8.5)
+            const savedScore = localStorage.getItem("e360_autodouble_saved_" + studentId);
+            if (savedScore) {
+                currentScore = savedScore;
+            } else {
+                const currentGT = getCurrentGTNumber();
+                if (currentGT === 2 && currentScore !== "") {
+                    const sNum = parseFloat(currentScore.replace(",", "."));
+                    if (!isNaN(sNum) && sNum > 0 && sNum <= 5.0) {
+                        const rec = recoverOriginalScore(sNum);
+                        currentScore = (rec % 1 === 0) ? rec.toString() : rec.toFixed(1);
+                    }
                 }
             }
 
@@ -1127,10 +1134,10 @@
             // Kiểm tra điểm hiện tại trong ô scoreElem
             const scoreElem = row.querySelector('[id^="scoreWrap_"]');
             const currentScoreText = scoreElem ? (scoreElem.innerText || "").trim() : "";
-            const currentNum = parseFloat(currentScoreText.replace(",", "."));
+            const hasScore = currentScoreText !== "" && currentScoreText.toUpperCase() !== "N/A" && currentScoreText !== "...";
 
-            // Nếu điểm đã > 5.0 (đã có điểm hoàn chỉnh) -> không cần refresh
-            if (!isNaN(currentNum) && currentNum > 5.0) return;
+            // Nếu đã có điểm rồi -> TUYỆT ĐỐI DỪNG REFRESH để tránh làm nhấp nháy/giật thẻ điểm
+            if (hasScore) return;
 
             // Nếu ô này đang trong tiến trình đếm ngược lưu -> bỏ qua
             if (window.__autoDoubleScheduled && window.__autoDoubleScheduled[studentId]) return;
@@ -1218,21 +1225,13 @@
             const targetScore = recoverOriginalScore(baseNum);
             const targetScoreStr = (targetScore % 1 === 0) ? targetScore.toString() : targetScore.toFixed(1);
 
-            // Chốt chặn 1: Nếu row đã đánh dấu hoàn tất điểm targetScoreStr này rồi thì bỏ qua tuyệt đối
-            if (row.dataset.autoDone === targetScoreStr) return;
-
-            // Chốt chặn 2: Đã lưu thành công điểm này trong localStorage trước đó thì bỏ qua
+            // Chốt chặn tuyệt đối: Nếu SV này đã được lưu điểm xong (trong DOM hoặc localStorage) -> BỎ QUA NGAY
             const savedKey = "e360_autodouble_saved_" + studentId;
-            const lastSaved = localStorage.getItem(savedKey);
-            if (lastSaved && (lastSaved === targetScoreStr || parseFloat(lastSaved) === targetScore)) {
-                row.dataset.autoDone = targetScoreStr;
-                if (scoreElem && (scoreElem.innerText || "").trim() !== targetScoreStr) {
-                    scoreElem.innerText = targetScoreStr;
-                }
+            if (row.dataset.autoDone || localStorage.getItem(savedKey)) {
                 return;
             }
 
-            // Chốt chặn 3: Đang có timer chờ lưu cho sinh viên này (tránh tạo nhiều timeout lặp)
+            // Chốt chặn 2: Đang có timer chờ lưu cho sinh viên này (tránh tạo nhiều timeout lặp)
             if (window.__autoDoubleScheduled[studentId]) return;
 
             // Tìm tdScore & input
@@ -1293,11 +1292,6 @@
                                 ts: Date.now()
                             }));
                         } catch (e) { }
-
-                        // CẬP NHẬT NGAY THẺ ĐIỂM TRÊN MÀN HÌNH (nhảy từ 5.0 -> 10)
-                        if (scoreElem) {
-                            scoreElem.innerText = targetScoreStr;
-                        }
 
                         if (statusDiv) {
                             statusDiv.className = "e360-score-status success";
