@@ -1556,13 +1556,16 @@
     }
 
     // Kiểm tra xem sinh viên đã xác nhận chữ ký hay chưa
+    // Điều kiện: input có checked VÀ có dòng chữ "đã ký"
     function isStudentSigned(row) {
         if (!row) return false;
         const sigContainer = row.querySelector(".e360-signature-container");
-        const cb = sigContainer ? sigContainer.querySelector('input[type="checkbox"]') : row.querySelector('input[type="checkbox"]');
-        if (cb && cb.checked) return true;
-        const rowText = (row.innerText || "").toLowerCase();
-        return rowText.includes("đã ký") || rowText.includes("không ký");
+        const cb = sigContainer ? sigContainer.querySelector('input[type="checkbox"]') : row.querySelector('.e360-sig-checkbox, input[type="checkbox"]');
+        if (!cb || !cb.checked) return false;
+
+        const targetScope = sigContainer || row;
+        const text = (targetScope.innerText || targetScope.textContent || "").toLowerCase();
+        return text.includes("đã ký");
     }
 
     function checkAndAutoCloseSession(table) {
