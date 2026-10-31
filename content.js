@@ -107,6 +107,7 @@
         bgHeartbeatCount++;
         const table = document.getElementById(TABLE_ID);
         if (table) {
+            pullLatestScoresForGT2(table);
             autoDoubleScore(table);
             checkAndAutoCloseSession(table);
         }
@@ -114,7 +115,7 @@
         // Cập nhật tooltip số lần quét ngầm trên badge
         const badge = document.getElementById("e360-bg-status-badge");
         if (badge) {
-            badge.title = `Auto chạy ngầm đang hoạt động (Đã quét ${bgHeartbeatCount} lần)`;
+            badge.title = `Auto GT2 đang hoạt động (Đã quét ${bgHeartbeatCount} lần)`;
         }
     }
 
@@ -1021,6 +1022,13 @@
                                 score: rawVal,
                                 ts: Date.now()
                             }));
+                            if (window.BroadcastChannel) {
+                                new BroadcastChannel("e360_score_channel").postMessage({
+                                    studentId: studentId,
+                                    score: rawVal,
+                                    ts: Date.now()
+                                });
+                            }
                         } catch (err) {}
 
                         // Cập nhật nút Lưu tất cả & kiểm tra đóng ca thi
@@ -1120,6 +1128,90 @@
         }
         return Math.min(10, Math.max(0, Math.round(original * 10) / 10));
     }
+
+    // Chủ động kéo điểm mới nhất từ server cho các SV chưa có điểm (dành riêng cho GT2 chạy ngầm)
+    function pullLatestScoresForGT2(table) {
+        if (!table) return;
+        const currentGT = getCurrentGTNumber();
+        if (currentGT !== 2) return;
+
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+
+        const rows = tbody.querySelectorAll("tr");
+        rows.forEach(row => {
+            if (row.querySelector(".dataTables_empty")) return;
+            if (isDATNRow(row, table)) return;
+            if (isStudentAbsent(row)) return;
+
+            const studentId = getStudentIdFromRow(row);
+            if (!studentId) return;
+
+            // Nếu đã xử lý xong điểm cho SV này rồi thì không cần refresh
+            if (row.dataset.autoDone) return;
+            const savedKey = "e360_autodouble_saved_" + studentId;
+            if (localStorage.getItem(savedKey)) return;
+
+            // Kiểm tra điểm hiện tại trong ô scoreElem
+            const scoreElem = row.querySelector('[id^="scoreWrap_"]');
+            const currentScoreText = scoreElem ? (scoreElem.innerText || "").trim() : "";
+            const currentNum = parseFloat(currentScoreText.replace(",", "."));
+
+            // Nếu điểm đã > 5.0 (đã có điểm hoàn chỉnh) -> không cần refresh
+            if (!isNaN(currentNum) && currentNum > 5.0) return;
+
+            // Nếu ô này đang trong tiến trình đếm ngược lưu -> bỏ qua
+            if (window.__autoDoubleScheduled && window.__autoDoubleScheduled[studentId]) return;
+
+            // Chủ động gọi RefreshScore để E360 lấy điểm GT1 vừa nhập trên server về DOM của GT2
+            try {
+                if (typeof window.RefreshScore === "function") {
+                    window.RefreshScore(studentId);
+                } else {
+                    const reloadBtn = row.querySelector('[onclick*="RefreshScore"]');
+                    if (reloadBtn) reloadBtn.click();
+                }
+            } catch (e) { }
+
+            // Đồng thời làm mới chữ ký nếu chưa ký
+            const rowText = (row.innerText || "").toLowerCase();
+            if (!rowText.includes("đã ký")) {
+                try {
+                    if (typeof window.RefreshSign === "function") {
+                        window.RefreshSign(studentId);
+                    } else {
+                        const reloadSignBtn = row.querySelector('[onclick*="RefreshSign"]');
+                        if (reloadSignBtn) reloadSignBtn.click();
+                    }
+                } catch (e) { }
+            }
+        });
+    }
+
+    // Kênh đồng bộ thời gian thực giữa 2 tab (nếu mở cùng máy)
+    try {
+        if (window.BroadcastChannel) {
+            const scoreChan = new BroadcastChannel("e360_score_channel");
+            scoreChan.onmessage = (e) => {
+                if (getCurrentGTNumber() === 2) {
+                    const t = document.getElementById(TABLE_ID);
+                    if (t) {
+                        pullLatestScoresForGT2(t);
+                        setTimeout(() => autoDoubleScore(t), 200);
+                    }
+                }
+            };
+        }
+        window.addEventListener("storage", (e) => {
+            if (e.key === "e360_score_updated" && getCurrentGTNumber() === 2) {
+                const t = document.getElementById(TABLE_ID);
+                if (t) {
+                    pullLatestScoresForGT2(t);
+                    setTimeout(() => autoDoubleScore(t), 200);
+                }
+            }
+        });
+    } catch (e) { }
 
     // Tự động điền + lưu điểm đồng bộ điểm GT1 khi phát hiện GT1 đã chấm (fake real-time)
     // Chỉ GT2 tự động (GT1 nhập → GT2 auto lưu đúng điểm gốc của GT1)
