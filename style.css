@@ -1716,3 +1716,57 @@ section.content-header-big .main-action input[type="search"] {
 .number-pc-container {
     display: none !important;
 }
+
+/* Badge trạng thái chạy ngầm Apple Cupertino */
+.e360-bg-status-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 11px !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    border-radius: var(--apple-radius-sm, 8px) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #1d1d1f !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+    user-select: none !important;
+    cursor: default !important;
+    transition: all 0.2s ease !important;
+}
+
+.e360-bg-status-badge:hover {
+    background: #ffffff !important;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.e360-pulse-dot {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background: #34c759 !important; /* Apple green */
+    position: relative !important;
+    display: inline-block !important;
+}
+
+.e360-pulse-dot::after {
+    content: '' !important;
+    position: absolute !important;
+    inset: -3px !important;
+    border-radius: 50% !important;
+    background: rgba(52, 199, 89, 0.45) !important;
+    animation: e360Pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+@keyframes e360Pulse {
+    0%, 100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}

@@ -1,4 +1,44 @@
 (function () {
+    // ==================== BACKGROUND TAB KEEPALIVE & VISIBILITY SPOOFING ====================
+    // Đánh lừa trình duyệt & E360 luôn ở trạng thái Active (ngăn chặn đóng băng khi đổi tab/thu nhỏ)
+    try {
+        Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+        Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+        document.hasFocus = () => true;
+
+        // Chặn sự kiện visibilitychange để trang web không biết người dùng đã chuyển tab
+        window.addEventListener('visibilitychange', (e) => {
+            e.stopImmediatePropagation();
+        }, true);
+    } catch (e) { }
+
+    // Giữ kết nối phần cứng Audio để Chrome không bao giờ discard/freeze tab E360
+    function initAudioKeepAlive() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            let ctx = null;
+            const start = () => {
+                if (ctx && ctx.state !== 'closed') return;
+                ctx = new AudioCtx();
+                const buf = ctx.createBuffer(1, 1, 22050);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                src.loop = true;
+                src.connect(ctx.destination);
+                src.start(0);
+            };
+            start();
+            ['click', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+                window.addEventListener(evt, () => {
+                    if (ctx && ctx.state === 'suspended') ctx.resume();
+                    else if (!ctx) start();
+                }, { once: true, passive: true });
+            });
+        } catch (e) { }
+    }
+    initAudioKeepAlive();
+
     // Áp dụng style sáng sớm nhất có thể
     try {
         if (document.readyState === "loading") {
@@ -11,6 +51,72 @@
     const TABLE_ID = "checkInTable";
     const STORAGE_KEY = "columnToggleState_v3";
     const DEFAULT_HIDDEN_COLUMNS = ["Ghi chú điểm danh", "Nhận xét/ghi chú nộp bài", "AF/CC"];
+
+    // ==================== WEB WORKER TIMER (CHỐNG CHROME BÓP NGHẸT TAB NỀN) ====================
+    let bgHeartbeatCount = 0;
+    let bgWorkerInstance = null;
+
+    function startBackgroundWorker(callback, intervalMs = 2500) {
+        if (bgWorkerInstance) return bgWorkerInstance;
+        try {
+            const workerCode = `
+                let timer = null;
+                self.onmessage = function(e) {
+                    if (e.data === 'start') {
+                        if (timer) clearInterval(timer);
+                        timer = setInterval(function() {
+                            self.postMessage('tick');
+                        }, ${intervalMs});
+                    } else if (e.data === 'stop') {
+                        if (timer) clearInterval(timer);
+                        timer = null;
+                    }
+                };
+            `;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            const worker = new Worker(workerUrl);
+
+            worker.onmessage = function(e) {
+                if (e.data === 'tick') {
+                    callback();
+                }
+            };
+
+            worker.postMessage('start');
+            URL.revokeObjectURL(workerUrl);
+
+            window.addEventListener('beforeunload', () => {
+                try {
+                    worker.postMessage('stop');
+                    worker.terminate();
+                } catch (err) { }
+            });
+
+            console.log("[E360-Worker] ✅ Web Worker Timer chạy ngầm đã kích hoạt (Nhịp tim " + intervalMs + "ms).");
+            bgWorkerInstance = worker;
+            return worker;
+        } catch (err) {
+            console.warn("[E360-Worker] Không thể tạo Web Worker, dùng fallback setInterval:", err);
+            setInterval(callback, intervalMs);
+            return null;
+        }
+    }
+
+    function onHeartbeatTick() {
+        bgHeartbeatCount++;
+        const table = document.getElementById(TABLE_ID);
+        if (table) {
+            autoDoubleScore(table);
+            checkAndAutoCloseSession(table);
+        }
+
+        // Cập nhật tooltip số lần quét ngầm trên badge
+        const badge = document.getElementById("e360-bg-status-badge");
+        if (badge) {
+            badge.title = `Auto chạy ngầm đang hoạt động (Đã quét ${bgHeartbeatCount} lần)`;
+        }
+    }
 
     function loadState() {
         try {
@@ -58,13 +164,32 @@
             gap: "6px"
         });
 
+        // Hàng điều khiển trên cùng (Gồm Badge chạy ngầm + Nút ☰ Cột)
+        const topRow = document.createElement("div");
+        topRow.style.display = "flex";
+        topRow.style.alignItems = "center";
+        topRow.style.gap = "8px";
+
+        // Badge chỉ thị chạy ngầm Apple Cupertino
+        const statusBadge = document.createElement("div");
+        statusBadge.className = "e360-bg-status-badge";
+        statusBadge.id = "e360-bg-status-badge";
+        statusBadge.title = `Auto chạy ngầm đang hoạt động (Đã quét ${bgHeartbeatCount} lần)`;
+        statusBadge.innerHTML = `
+            <span class="e360-pulse-dot"></span>
+            <span class="e360-status-text">Auto chạy ngầm</span>
+        `;
+        topRow.appendChild(statusBadge);
+
         // Nút chính (toggle) để hiển thị/ẩn panel cột
         const toggleBtn = document.createElement("button");
         toggleBtn.type = "button";
         toggleBtn.className = "column-btn column-toggle-main-btn";
         toggleBtn.textContent = "☰ Cột";
         toggleBtn.title = "Hiển thị/ẩn các cột";
-        container.appendChild(toggleBtn);
+        topRow.appendChild(toggleBtn);
+
+        container.appendChild(topRow);
 
         // Panel chứa các checkbox cột (ẩn mặc định)
         const panel = document.createElement("div");
@@ -660,6 +785,12 @@
                 checkoutCheckbox.classList.add("e360-sig-checkbox");
                 sigContainer.prepend(checkoutCheckbox);
             }
+            if (checkoutCheckbox && !checkoutCheckbox.dataset.e360SigBound) {
+                checkoutCheckbox.dataset.e360SigBound = "1";
+                checkoutCheckbox.addEventListener("change", () => {
+                    setTimeout(() => checkAndAutoCloseSession(table), 300);
+                });
+            }
 
             // Xóa bỏ hoàn toàn biểu tượng reload 🔄 ở cột chữ ký theo yêu cầu
             const refreshSignBtn = submitCell.querySelector('[onclick*="RefreshSign"]') || sigContainer.querySelector('[onclick*="RefreshSign"], .e360-refresh-icon');
@@ -888,8 +1019,9 @@
                             }));
                         } catch (err) {}
 
-                        // Cập nhật nút Lưu tất cả
+                        // Cập nhật nút Lưu tất cả & kiểm tra đóng ca thi
                         try { updateBulkSaveButtonState(table); } catch (e) { }
+                        try { checkAndAutoCloseSession(table); } catch (e) { }
 
                         // Tự ẩn thông báo trạng thái sau 3s
                         setTimeout(() => {
@@ -1099,6 +1231,7 @@
         });
         updateBulkSignButtonState(table);
         updateBulkSaveButtonState(table);
+        checkAndAutoCloseSession(table);
     }
 
     // Cập nhật trạng thái nút "Ký tất cả" (chỉ bật khi tất cả SV đã có điểm)
@@ -1128,6 +1261,7 @@
         btns.forEach(btn => {
             btn.disabled = !(allScored && hasUnsigned && rows.length > 0);
         });
+        checkAndAutoCloseSession(table);
     }
 
     // Ký hàng loạt tất cả SV chưa ký (chỉ khi tất cả đã có điểm)
@@ -1178,6 +1312,7 @@
                 window.confirm = origConfirm;
                 if (origDialog) window.e360DialogConfirm = origDialog;
                 updateBulkSignButtonState(table);
+                checkAndAutoCloseSession(table);
                 return;
             }
             const row = unsignedRows[idx++];
@@ -1234,6 +1369,7 @@
         btns.forEach(btn => {
             btn.disabled = !hasPending;
         });
+        checkAndAutoCloseSession(table);
     }
 
     // Lưu toàn bộ điểm đã nhập (sau khi GT1 nhập xong)
@@ -1287,6 +1423,7 @@
                 btns.forEach(b => { b.disabled = false; b.textContent = "Lưu tất cả"; });
                 updateBulkSaveButtonState(table);
                 alert("✅ Đã lưu " + saved + " điểm" + (failed ? " (" + failed + " lỗi)" : "") + ".");
+                checkAndAutoCloseSession(table);
                 return;
             }
             const item = pending[idx++];
@@ -1333,6 +1470,161 @@
             });
         }
         saveNext();
+    }
+
+    // Kiểm tra xem sinh viên có vắng mặt hay không
+    function isStudentAbsent(row) {
+        if (!row) return false;
+        const absentRadio = row.querySelector('.e360-switch-absent input[type="radio"], input[value*="ABSENT"]:checked, input[onclick*="ABSENT"]:checked');
+        if (absentRadio && absentRadio.checked) return true;
+        const checkInCell = row.querySelector('.e360-col-checkin-td');
+        if (checkInCell) {
+            const checkedRadio = checkInCell.querySelector('input[type="radio"]:checked');
+            if (checkedRadio) {
+                const label = checkedRadio.closest('label');
+                const labelText = (label ? (label.innerText || "") : "") || checkedRadio.title || "";
+                if (/vắng|absent/i.test(labelText)) return true;
+            }
+        }
+        return false;
+    }
+
+    // ==================== AUTO CLOSE EXAM SESSION ====================
+    let autoCloseTimer = null;
+    let isAutoClosing = false;
+
+    function triggerAutoClose(exportBtn) {
+        if (!exportBtn || isAutoClosing || autoCloseTimer) return;
+        console.log("[E360-AutoClose] Tất cả điểm và chữ ký đã hoàn tất! Chuẩn bị đóng ca thi...");
+
+        exportBtn.dataset.origText = exportBtn.innerText;
+        exportBtn.innerText = "⏳ Tự động đóng ca thi sau 1.5s...";
+        exportBtn.classList.add("saved-flash");
+
+        autoCloseTimer = setTimeout(() => {
+            autoCloseTimer = null;
+            isAutoClosing = true;
+            exportBtn.dataset.closed = "1";
+
+            console.log("[E360-AutoClose] Đang thực thi ExportPDF...");
+
+            // 1. Tự động đồng ý mọi confirm / alert
+            const origConfirm = window.confirm;
+            window.confirm = () => true;
+            const origAlert = window.alert;
+            window.alert = () => true;
+            if (typeof window.e360DialogConfirm === "function") {
+                window.e360DialogConfirm = () => Promise.resolve(true);
+            }
+
+            // 2. Kích hoạt ExportPDF (gọi trực tiếp hàm nếu có hoặc click button)
+            try {
+                if (typeof window.ExportPDF === "function") {
+                    window.ExportPDF();
+                } else {
+                    exportBtn.click();
+                }
+            } catch (e) {
+                exportBtn.click();
+            }
+
+            // 3. Quét mọi popup modal xác nhận (Bootstrap / SweetAlert / jQuery UI)
+            const scanInterval = setInterval(() => {
+                const modalButtons = Array.from(document.querySelectorAll(".modal.in button, .modal.show button, .swal2-actions button, .ui-dialog-buttonpane button, .bootbox button, button, .btn"));
+                const confirmBtn = modalButtons.find(b => {
+                    if (b === exportBtn) return false;
+                    const t = (b.innerText || "").trim().toLowerCase();
+                    return t === "xác nhận" || t === "đồng ý" || t === "ok" || t === "yes" || t === "kết thúc";
+                });
+                if (confirmBtn) {
+                    console.log("[E360-AutoClose] Tự động bấm xác nhận modal:", confirmBtn);
+                    confirmBtn.click();
+                    clearInterval(scanInterval);
+                }
+            }, 100);
+
+            setTimeout(() => {
+                clearInterval(scanInterval);
+                window.confirm = origConfirm;
+                window.alert = origAlert;
+                exportBtn.innerText = "✅ Đã đóng ca thi";
+                exportBtn.classList.remove("saved-flash");
+                isAutoClosing = false;
+            }, 2500);
+
+        }, 1500);
+    }
+
+    // Kiểm tra xem sinh viên đã xác nhận chữ ký hay chưa
+    function isStudentSigned(row) {
+        if (!row) return false;
+        const sigContainer = row.querySelector(".e360-signature-container");
+        const cb = sigContainer ? sigContainer.querySelector('input[type="checkbox"]') : row.querySelector('input[type="checkbox"]');
+        if (cb && cb.checked) return true;
+        const rowText = (row.innerText || "").toLowerCase();
+        return rowText.includes("đã ký") || rowText.includes("không ký");
+    }
+
+    function checkAndAutoCloseSession(table) {
+        if (!table || isAutoClosing || autoCloseTimer) return;
+
+        // Tìm nút "Kết thúc ca thi"
+        const exportBtn = document.getElementById("btnExportPDF") || 
+                          document.querySelector('button[onclick*="ExportPDF"]') ||
+                          Array.from(document.querySelectorAll("button, .btn, a.btn")).find(b => (b.innerText || "").includes("Kết thúc ca thi"));
+
+        if (!exportBtn) return;
+        if (exportBtn.dataset.closed === "1") return;
+        if (exportBtn.disabled || exportBtn.classList.contains("disabled") || exportBtn.style.display === "none") return;
+
+        const btnText = (exportBtn.innerText || "").toLowerCase();
+        if (btnText.includes("đã đóng") || btnText.includes("đã kết thúc")) return;
+
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.querySelector(".dataTables_empty"));
+        if (rows.length === 0) return;
+
+        let hasPending = false;
+        const presentRows = [];
+
+        for (const row of rows) {
+            if (isDATNRow(row, table)) continue;
+
+            const tdScore = row.querySelector(".e360-col-score-td");
+            const input = tdScore ? tdScore.querySelector(".e360-score-input") : null;
+            const statusDiv = tdScore ? tdScore.querySelector(".e360-score-status") : null;
+
+            // Người dùng đang gõ dở hoặc đang lưu ngầm
+            if (input && document.activeElement === input) {
+                hasPending = true;
+                break;
+            }
+            if (statusDiv && statusDiv.innerText.includes("Đang lưu")) {
+                hasPending = true;
+                break;
+            }
+
+            // Bỏ qua sinh viên vắng mặt
+            if (!isStudentAbsent(row)) {
+                presentRows.push(row);
+            }
+        }
+
+        if (hasPending || presentRows.length === 0) {
+            return;
+        }
+
+        // Kiểm tra xem tất cả sinh viên có mặt đã xác nhận chữ ký chưa
+        const unsignedRows = presentRows.filter(row => !isStudentSigned(row));
+
+        if (unsignedRows.length === 0) {
+            // TẤT CẢ SINH VIÊN CÓ MẶT ĐÃ XÁC NHẬN CHỮ KÝ -> TỰ ĐỘNG ĐÓNG CA THI!
+            console.log(`[E360-AutoClose] Tất cả ${presentRows.length} sinh viên có mặt đã xác nhận chữ ký! Tự động đóng ca thi...`);
+            triggerAutoClose(exportBtn);
+        } else {
+            console.log(`[E360-AutoClose] Chưa đóng: còn ${unsignedRows.length}/${presentRows.length} SV có mặt chưa xác nhận chữ ký.`);
+        }
     }
 
     var _flcRunning = false;
@@ -1471,6 +1763,9 @@
             // Tự động điền + lưu điểm x2 khi phát hiện điểm giám thị khác thay đổi (fake real-time)
             autoDoubleScore(table);
 
+            // Kiểm tra tự động kết thúc ca thi nếu đã đủ điều kiện
+            checkAndAutoCloseSession(table);
+
             // Theo dõi thay đổi trong tbody để áp dụng lại state và refresh panel khi có rows mới
             const tbody = table.querySelector("tbody");
             if (tbody) {
@@ -1488,6 +1783,7 @@
                         updateBulkSignButtonState(table); // Cập nhật nút Ký tất cả
                         updateBulkSaveButtonState(table); // Cập nhật nút Lưu tất cả
                         autoDoubleScore(table); // Tự động điền + lưu điểm x2
+                        checkAndAutoCloseSession(table); // Tự động đóng ca thi nếu đủ điều kiện
                     }, 300);
                 });
 
@@ -1498,13 +1794,8 @@
                 });
             }
 
-            // Fallback định kỳ cho GT2 auto-double (bắt các trường hợp observer bỏ lỡ)
-            try {
-                setInterval(function () {
-                    const t = document.getElementById(TABLE_ID);
-                    if (t) autoDoubleScore(t);
-                }, 4000);
-            } catch (e) { }
+            // Khởi động Web Worker Timer chạy ngầm độc lập (nhịp tim 2.5s - bất chấp chuyển tab/chơi game)
+            startBackgroundWorker(onHeartbeatTick, 2500);
 
             console.log("[E360-VUI] Extension loaded. State:", state);
         }, 500);

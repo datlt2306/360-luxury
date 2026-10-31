@@ -3,9 +3,6 @@
   "name": "E360-Premium",
   "version": "1.0",
   "description": "Làm vì đam mê - Ai thuê thì làm",
-  "permissions": [
-    "storage"
-  ],
   "content_scripts": [
     {
       "matches": [
@@ -17,7 +14,8 @@
       "css": [
         "style.css"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }
