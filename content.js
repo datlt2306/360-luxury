@@ -56,7 +56,7 @@
     let bgHeartbeatCount = 0;
     let bgWorkerInstance = null;
 
-    function startBackgroundWorker(callback, intervalMs = 2500) {
+    function startBackgroundWorker(callback, intervalMs = 1200) {
         if (bgWorkerInstance) return bgWorkerInstance;
         try {
             const workerCode = `
@@ -1085,9 +1085,9 @@
         });
     }
 
-    // Delay ngẫu nhiên 1-4s giống người thật
+    // Delay ngẫu nhiên dưới 1.2s giống người thật (đảm bảo hoàn tất dưới 3s)
     function randomDelayMs() {
-        return Math.floor(1000 + Math.random() * 3000);
+        return Math.floor(400 + Math.random() * 800);
     }
 
     // Phát hiện số giám thị hiện tại từ sidebar (GT:1 / GT:2)
@@ -1829,8 +1829,8 @@
                 });
             }
 
-            // Khởi động Web Worker Timer chạy ngầm độc lập (nhịp tim 2.5s - bất chấp chuyển tab/chơi game)
-            startBackgroundWorker(onHeartbeatTick, 2500);
+            // Khởi động Web Worker Timer chạy ngầm độc lập (nhịp tim 1.2s - đảm bảo auto dưới 3s)
+            startBackgroundWorker(onHeartbeatTick, 1200);
 
             console.log("[E360-VUI] Extension loaded. State:", state);
         }, 500);
