@@ -21,6 +21,15 @@
         }
     } catch (e) { }
 
+    // Dọn dẹp cache điểm cũ có thể bị lưu sai từ các phiên bản trước
+    try {
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith("e360_autodouble_saved_")) {
+                localStorage.removeItem(k);
+            }
+        });
+    } catch (e) { }
+
     const TABLE_ID = "checkInTable";
     const STORAGE_KEY = "columnToggleState_v3";
     const DEFAULT_HIDDEN_COLUMNS = ["Ghi chú điểm danh", "Nhận xét/ghi chú nộp bài", "AF/CC"];
@@ -904,21 +913,13 @@
             }
 
             // Nếu người dùng là GT2:
-            // 1. Nếu đã từng lưu điểm cho SV này rồi thì giữ nguyên điểm đã lưu
-            // 2. Nếu chưa từng lưu và điểm hiện tại <= 5.0 (điểm chia đôi tạm thời của GT1)
-            //    thì tự động hiển thị trước điểm gốc đã khôi phục (VD: 2.5 -> 5.0, 4.3 -> 8.5)
-            const savedScore = localStorage.getItem("e360_autodouble_saved_" + studentId);
+            // 1. Nếu đã từng lưu điểm cho SV này trong phiên làm việc thì giữ nguyên điểm đã lưu
+            // 2. Nếu chưa lưu thì để trống để autoDoubleScore tự động tính và điền đúng 1 lần duy nhất!
+            const savedScore = sessionStorage.getItem("e360_gt2_saved_" + studentId) || localStorage.getItem("e360_gt2_score_" + studentId);
             if (savedScore) {
                 currentScore = savedScore;
             } else {
-                const currentGT = getCurrentGTNumber();
-                if (currentGT === 2 && currentScore !== "") {
-                    const sNum = parseFloat(currentScore.replace(",", "."));
-                    if (!isNaN(sNum) && sNum > 0 && sNum <= 5.0) {
-                        const rec = recoverOriginalScore(sNum);
-                        currentScore = (rec % 1 === 0) ? rec.toString() : rec.toFixed(1);
-                    }
-                }
+                currentScore = "";
             }
 
             // Nếu đã chèn rồi trong tdScore, kiểm tra xem có cần đồng bộ giá trị không
@@ -985,13 +986,13 @@
                         input.classList.add("saved-flash");
                         setTimeout(() => input.classList.remove("saved-flash"), 2000);
 
-                        // Cập nhật thẻ hiển thị điểm trong cell nếu có
-                        if (scoreElem) {
-                            scoreElem.innerText = rawVal;
-                        }
+                        row.dataset.gt2Done = "1";
+                        input.dataset.gt2Done = "1";
                         row.dataset.autoDone = rawVal;
                         try {
-                            localStorage.setItem("e360_autodouble_saved_" + studentId, rawVal);
+                            sessionStorage.setItem("e360_gt2_done_" + studentId, "1");
+                            sessionStorage.setItem("e360_gt2_saved_" + studentId, rawVal);
+                            localStorage.setItem("e360_gt2_score_" + studentId, rawVal);
                         } catch (e) { }
 
                         // Đồng bộ lưu vết storage để các panel / tab khác nhận biết
@@ -1127,9 +1128,9 @@
             if (!studentId) return;
 
             // Nếu đã xử lý xong điểm cho SV này rồi thì không cần refresh
-            if (row.dataset.autoDone) return;
-            const savedKey = "e360_autodouble_saved_" + studentId;
-            if (localStorage.getItem(savedKey)) return;
+            if (row.dataset.gt2Done === "1" || row.dataset.autoDone) return;
+            const savedKey = "e360_gt2_score_" + studentId;
+            if (localStorage.getItem(savedKey) || sessionStorage.getItem("e360_gt2_done_" + studentId) === "1") return;
 
             // Kiểm tra điểm hiện tại trong ô scoreElem
             const scoreElem = row.querySelector('[id^="scoreWrap_"]');
@@ -1140,7 +1141,7 @@
             if (hasScore) return;
 
             // Nếu ô này đang trong tiến trình đếm ngược lưu -> bỏ qua
-            if (window.__autoDoubleScheduled && window.__autoDoubleScheduled[studentId]) return;
+            if (window.__autoDoubleInProgress && window.__autoDoubleInProgress[studentId]) return;
 
             // Chủ động gọi RefreshScore để E360 lấy điểm GT1 vừa nhập trên server về DOM của GT2
             try {
@@ -1194,7 +1195,7 @@
 
     // Tự động điền + lưu điểm đồng bộ điểm GT1 khi phát hiện GT1 đã chấm (fake real-time)
     // Chỉ GT2 tự động (GT1 nhập → GT2 auto lưu đúng điểm gốc của GT1)
-    window.__autoDoubleScheduled = window.__autoDoubleScheduled || {};
+    window.__autoDoubleInProgress = window.__autoDoubleInProgress || {};
 
     function autoDoubleScore(table) {
         if (!table) return;
@@ -1207,10 +1208,39 @@
         rows.forEach(row => {
             if (row.querySelector(".dataTables_empty")) return;
             if (isDATNRow(row, table)) return;
+            if (isStudentAbsent(row)) return;
 
             const studentId = getStudentIdFromRow(row);
             if (!studentId) return;
 
+            // 1. Chốt chặn vĩnh viễn: Nếu sinh viên này đã được lưu xong -> TUYỆT ĐỐI BỎ QUA!
+            const savedKey = "e360_gt2_score_" + studentId;
+            if (row.dataset.gt2Done === "1" || 
+                sessionStorage.getItem("e360_gt2_done_" + studentId) === "1" ||
+                localStorage.getItem(savedKey)) {
+                row.dataset.gt2Done = "1";
+                return;
+            }
+
+            // 2. Chốt chặn đang xử lý: Đang có tiến trình chờ/lưu ngầm cho sinh viên này -> BỎ QUA!
+            if (window.__autoDoubleInProgress[studentId]) return;
+
+            // 3. Tìm ô input: Nếu ô input ĐÃ CÓ ĐIỂM (dù bất kỳ điểm nào) -> TUYỆT ĐỐI KHÔNG TỰ ĐỘNG GHI ĐÈ HAY X2 NỮA!
+            let tdScore = row.querySelector(".e360-col-score-td");
+            if (!tdScore) return;
+            const input = tdScore.querySelector(".e360-score-input");
+            const statusDiv = tdScore.querySelector(".e360-score-status");
+            if (!input) return;
+
+            const curVal = input.value.trim();
+            if (curVal !== "") {
+                return; // ĐÃ CÓ ĐIỂM TRONG Ô INPUT -> CẤM ĐÈ, CẤM X2!
+            }
+
+            // 4. Nếu người dùng đang focus vào ô này để gõ tay thì không tự động
+            if (document.activeElement === input) return;
+
+            // 5. Đọc điểm chia đôi của GT1 từ scoreElem
             const scoreElem = row.querySelector('[id^="scoreWrap_"]');
             if (!scoreElem) return;
 
@@ -1218,73 +1248,50 @@
             if (!baseScoreText || baseScoreText.toUpperCase() === "N/A" || baseScoreText === "...") return;
 
             const baseNum = parseFloat(baseScoreText.replace(",", "."));
-            // Nếu điểm hệ thống > 5.0 (đã là điểm hoàn tất, hoặc đã được nhân đôi) thì bỏ qua
-            if (isNaN(baseNum) || baseNum < 0 || baseNum > 5) return;
+            if (isNaN(baseNum) || baseNum <= 0 || baseNum > 5.0) return;
 
-            // Tính điểm gốc của GT1 (khử sai số chia đôi và làm tròn của E360)
+            // 6. Tính điểm gốc của GT1 (VD: 1.5 -> 3.0, 2.5 -> 5.0, 4.3 -> 8.5)
             const targetScore = recoverOriginalScore(baseNum);
             const targetScoreStr = (targetScore % 1 === 0) ? targetScore.toString() : targetScore.toFixed(1);
 
-            // Chốt chặn tuyệt đối: Nếu SV này đã được lưu điểm xong (trong DOM hoặc localStorage) -> BỎ QUA NGAY
-            const savedKey = "e360_autodouble_saved_" + studentId;
-            if (row.dataset.autoDone || localStorage.getItem(savedKey)) {
-                return;
-            }
+            // ĐÁNH DẤU TIẾN TRÌNH ĐANG XỬ LÝ (KHÓA NGAY LẬP TỨC ĐỂ KHÔNG BỊ TICK KHÁC TRÙNG LẶP)
+            window.__autoDoubleInProgress[studentId] = true;
 
-            // Chốt chặn 2: Đang có timer chờ lưu cho sinh viên này (tránh tạo nhiều timeout lặp)
-            if (window.__autoDoubleScheduled[studentId]) return;
-
-            // Tìm tdScore & input
-            let tdScore = row.querySelector(".e360-col-score-td");
-            if (!tdScore) return;
-            const input = tdScore.querySelector(".e360-score-input");
-            const statusDiv = tdScore.querySelector(".e360-score-status");
-            if (!input) return;
-
-            // Nếu người dùng đang gõ dở thì không tự động đè
-            if (document.activeElement === input) return;
-
-            // Chốt chặn 4: Nếu người dùng vừa chỉnh sửa ô này gần đây
-            try {
-                const editingUntil = (window.__e360Editing && window.__e360Editing[studentId]) || 0;
-                if (editingUntil > Date.now()) return;
-            } catch (e) { }
-
-            // Chỉ tự động nếu ô input đang trống hoặc đang chứa điểm chia đôi tạm thời
-            const curInputVal = input.value.trim();
-            if (curInputVal !== "" && curInputVal !== baseScoreText && curInputVal !== targetScoreStr) return;
-
-            // Đánh dấu timer đang chờ để các chu kỳ sau không lặp lại
-            window.__autoDoubleScheduled[studentId] = true;
-
-            // Delay ngẫu nhiên 1-3s giống người thật trước khi tự nhập + lưu
             const humanDelay = randomDelayMs();
-            console.log("[E360-AutoDouble] schedule student", studentId, baseNum, "->", targetScoreStr, "in", humanDelay, "ms");
+            console.log(`[E360-AutoDouble] SV ${studentId}: GT1=${baseNum} -> GT2 sẽ điền ${targetScoreStr} (chờ ${humanDelay}ms)`);
 
             setTimeout(() => {
-                delete window.__autoDoubleScheduled[studentId];
+                // Kiểm tra lại lần cuối trước khi ghi đè giá trị
+                if (row.dataset.gt2Done === "1" || 
+                    sessionStorage.getItem("e360_gt2_done_" + studentId) === "1" ||
+                    localStorage.getItem(savedKey)) {
+                    delete window.__autoDoubleInProgress[studentId];
+                    return;
+                }
+                if (document.activeElement === input) {
+                    delete window.__autoDoubleInProgress[studentId];
+                    return;
+                }
+                const cur = input.value.trim();
+                if (cur !== "") {
+                    delete window.__autoDoubleInProgress[studentId];
+                    return;
+                }
 
-                // Re-check trước khi điền (tránh đè nếu người dùng vừa thao tác)
-                if (document.activeElement === input) return;
-                if (row.dataset.autoDone === targetScoreStr) return;
-
-                const nowVal = input.value.trim();
-                if (nowVal !== "" && nowVal !== baseScoreText && nowVal !== targetScoreStr) return;
-
-                try {
-                    const editingUntil = (window.__e360Editing && window.__e360Editing[studentId]) || 0;
-                    if (editingUntil > Date.now()) return;
-                } catch (e) { }
-
-                console.log("[E360-AutoDouble] filling student", studentId, baseNum, "->", targetScoreStr);
+                // Điền điểm vào ô input
                 input.value = targetScoreStr;
 
                 // Lưu qua iframe ngầm
                 saveScoreViaIframe(studentId, targetScoreStr, (success, msg) => {
+                    delete window.__autoDoubleInProgress[studentId];
+
                     if (success) {
-                        // Đánh dấu hoàn tất trên DOM & Storage ngay lập tức
-                        row.dataset.autoDone = targetScoreStr;
+                        // KHÓA VĨNH VIỄN SINH VIÊN NÀY TRÊN DOM VÀ STORAGE
+                        row.dataset.gt2Done = "1";
+                        input.dataset.gt2Done = "1";
                         try {
+                            sessionStorage.setItem("e360_gt2_done_" + studentId, "1");
+                            sessionStorage.setItem("e360_gt2_saved_" + studentId, targetScoreStr);
                             localStorage.setItem(savedKey, targetScoreStr);
                             localStorage.setItem("e360_score_updated", JSON.stringify({
                                 itemId: parseInt(studentId, 10),
@@ -1527,21 +1534,25 @@
                 input.disabled = false;
                 if (success) {
                     saved++;
-                    if (statusDiv) {
-                        statusDiv.className = "e360-score-status success";
-                        statusDiv.innerText = "✅ Đã lưu";
-                    }
-                    input.classList.add("saved-flash");
-                    setTimeout(() => input.classList.remove("saved-flash"), 2000);
-                    const scoreElem = item.row.querySelector('[id^="scoreWrap_"]');
-                    if (scoreElem) scoreElem.innerText = score;
+                    item.row.dataset.gt2Done = "1";
+                    input.dataset.gt2Done = "1";
                     try {
+                        sessionStorage.setItem("e360_gt2_done_" + studentId, "1");
+                        sessionStorage.setItem("e360_gt2_saved_" + studentId, score);
+                        localStorage.setItem("e360_gt2_score_" + studentId, score);
                         localStorage.setItem("e360_score_updated", JSON.stringify({
                             itemId: parseInt(studentId, 10),
                             score: score,
                             ts: Date.now()
                         }));
                     } catch (e) { }
+
+                    if (statusDiv) {
+                        statusDiv.className = "e360-score-status success";
+                        statusDiv.innerText = "✅ Đã lưu";
+                    }
+                    input.classList.add("saved-flash");
+                    setTimeout(() => input.classList.remove("saved-flash"), 2000);
                     setTimeout(() => {
                         if (statusDiv && statusDiv.innerText === "✅ Đã lưu") {
                             statusDiv.className = "e360-score-status";
