@@ -12,33 +12,6 @@
         }, true);
     } catch (e) { }
 
-    // Giữ kết nối phần cứng Audio để Chrome không bao giờ discard/freeze tab E360
-    function initAudioKeepAlive() {
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            let ctx = null;
-            const start = () => {
-                if (ctx && ctx.state !== 'closed') return;
-                ctx = new AudioCtx();
-                const buf = ctx.createBuffer(1, 1, 22050);
-                const src = ctx.createBufferSource();
-                src.buffer = buf;
-                src.loop = true;
-                src.connect(ctx.destination);
-                src.start(0);
-            };
-            start();
-            ['click', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-                window.addEventListener(evt, () => {
-                    if (ctx && ctx.state === 'suspended') ctx.resume();
-                    else if (!ctx) start();
-                }, { once: true, passive: true });
-            });
-        } catch (e) { }
-    }
-    initAudioKeepAlive();
-
     // Áp dụng style sáng sớm nhất có thể
     try {
         if (document.readyState === "loading") {
